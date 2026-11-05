@@ -40,6 +40,12 @@ class LocalSearch {
   ];
 
   /**
+   * The most results read when merging E-Textbooks. A search matching more
+   * still works: what's past this point just isn't merged.
+   */
+  private const MERGE_LIMIT = 2000;
+
+  /**
    * Counts this request already knows, so a section and its filter share one.
    */
   private array $counts = [];
@@ -55,9 +61,13 @@ class LocalSearch {
    *
    * @return array
    *   total, and items: [title, url, external, summary, meta, source, image,
-   *   image_url, details].
+   *   image_url, details]. details is a list with one entry per copy of an
+   *   E-Textbook.
    */
   public function search(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
+    if ($this->listsBooks($source_keys)) {
+      return $this->searchBooks($source_keys, $query, $refines, $page, $limit, $sort);
+    }
     $search = $this->build($source_keys, $query, $refines);
     if (!$search) {
       return ['total' => 0, 'items' => []];
@@ -87,12 +97,209 @@ class LocalSearch {
     if (isset($this->counts[$key])) {
       return $this->counts[$key];
     }
+    if ($this->listsBooks($source_keys)) {
+      return $this->searchBooks($source_keys, $query, $refines, 0, 0)['total'];
+    }
     $search = $this->build($source_keys, $query, $refines);
     if (!$search) {
       return 0;
     }
     $search->range(0, 0);
     return $this->counts[$key] = (int) $search->execute()->getResultCount();
+  }
+
+  /**
+   * Whether any of these sources holds E-Textbooks.
+   */
+  private function listsBooks(array $source_keys): bool {
+    foreach ($source_keys as $key) {
+      if (in_array('e_books', SearchSources::get($key)['types'] ?? [], TRUE)) {
+        return TRUE;
+      }
+    }
+    return FALSE;
+  }
+
+  /**
+   * One page of results with each E-Textbook once.
+   *
+   * Every class that uses a book has its own node, all with the same link. The
+   * nodes and the index stay as they are: copies are only merged here, so all
+   * matches are read first for the total and the pages to come out right.
+   */
+  private function searchBooks(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
+    $search = $this->build($source_keys, $query, $refines);
+    if (!$search) {
+      return ['total' => 0, 'items' => []];
+    }
+    $this->applySort($search, $source_keys, $sort);
+    $search->range(0, self::MERGE_LIMIT);
+    $results = $search->execute();
+    $found = $results->getResultItems();
+
+    $ids = [];
+    foreach (array_keys($found) as $item_id) {
+      if (preg_match('#/(\d+)(?::|$)#', (string) $item_id, $match)) {
+        $ids[$item_id] = (int) $match[1];
+      }
+    }
+    $addresses = $this->bookAddresses($ids);
+
+    // Keys are strings with a prefix, so the order of first appearance holds.
+    $groups = [];
+    foreach ($found as $item_id => $result) {
+      $address = $addresses[$ids[$item_id] ?? 0] ?? NULL;
+      $groups[$address !== NULL ? 'book:' . $address : 'item:' . $item_id][] = $result;
+    }
+    $total = count($groups) + max(0, (int) $results->getResultCount() - count($found));
+    $this->counts[$this->countKey($source_keys, $query, $refines)] = $total;
+
+    $groups = array_slice($groups, $page * $limit, $limit, TRUE);
+    $copies = $this->bookCopies(array_keys($groups));
+    $words = SearchSources::indexableWords($query);
+    $items = [];
+    foreach ($groups as $key => $group) {
+      $matched = [];
+      foreach ($group as $result) {
+        $object = $result->getOriginalObject();
+        $node = $object ? $object->getValue() : NULL;
+        if ($node instanceof NodeInterface) {
+          $matched[$node->id()] = $this->entityRepository->getTranslationFromContext($node);
+        }
+      }
+      if ($matched) {
+        // The copies that matched come first, so the row names the class searched for.
+        $items[] = $this->mergedRow($matched + ($copies[$key] ?? []), $source_keys, $words);
+      }
+    }
+    return ['total' => $total, 'items' => $items];
+  }
+
+  /**
+   * Which address each E-Textbook among these nodes links to.
+   *
+   * @param int[] $ids
+   *   Node ids.
+   *
+   * @return string[]
+   *   Addresses by node id. Other kinds of content have none.
+   */
+  private function bookAddresses(array $ids): array {
+    if (!$ids) {
+      return [];
+    }
+    $addresses = [];
+    foreach ($this->bookLinks('entity_id', array_values(array_unique($ids))) as $id => $value) {
+      $address = $this->bookAddress($value);
+      if ($address !== NULL) {
+        $addresses[$id] = $address;
+      }
+    }
+    return $addresses;
+  }
+
+  /**
+   * Every viewable copy of these books, whether or not it matched the search.
+   *
+   * @param string[] $keys
+   *   Group keys. Only the ones naming a book are looked up.
+   *
+   * @return array
+   *   Nodes by node id, in lists by group key.
+   */
+  private function bookCopies(array $keys): array {
+    $values = [];
+    foreach ($keys as $key) {
+      if (str_starts_with($key, 'book:')) {
+        $address = substr($key, 5);
+        array_push($values, $address, 'http://' . $address, 'https://' . $address);
+      }
+    }
+    if (!$values) {
+      return [];
+    }
+    $links = $this->bookLinks('field_book_url_value', $values);
+    $nodes = $this->entityTypeManager->getStorage('node')->loadMultiple(array_keys($links));
+    $copies = [];
+    foreach ($nodes as $id => $node) {
+      if ($node instanceof NodeInterface && $node->isPublished() && $node->access('view')) {
+        $copies['book:' . $this->bookAddress($links[$id])][$id] = $this->entityRepository->getTranslationFromContext($node);
+      }
+    }
+    return $copies;
+  }
+
+  /**
+   * E-Textbook links by node id, from the field's table.
+   *
+   * Reading the table saves loading every matching node. If it can't be read
+   * the copies just aren't merged.
+   */
+  private function bookLinks(string $column, array $values): array {
+    try {
+      return \Drupal::database()->select('node__field_book_url', 'link')
+        ->fields('link', ['entity_id', 'field_book_url_value'])
+        ->condition('link.' . $column, $values, 'IN')
+        ->condition('link.deleted', 0)
+        ->execute()
+        ->fetchAllKeyed();
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('palefire_search')->warning('E-Textbook copies were not merged: @message', ['@message' => $e->getMessage()]);
+      return [];
+    }
+  }
+
+  /**
+   * A book's link without what doesn't change the book, or NULL if not a link.
+   */
+  private function bookAddress(string $value): ?string {
+    $value = trim($value);
+    return preg_match('#^(https?://|/)#i', $value) ? rtrim(preg_replace('#^https?://#i', '', $value), '/') : NULL;
+  }
+
+  /**
+   * One row from one or more copies of a book, or from any other single node.
+   */
+  private function mergedRow(array $nodes, array $source_keys, array $words): array {
+    $first = reset($nodes);
+    $row = $this->row($first, $source_keys, $words);
+    if ($first->bundle() !== 'e_books') {
+      return $row;
+    }
+
+    $details = $codes = $terms = $titles = [];
+    foreach ($nodes as $node) {
+      $copy = $this->bookDetails($node);
+      $details[json_encode($copy)] = $copy;
+      $codes[] = ResultText::clean($this->text($node, 'field_course_code'));
+      $terms[] = $copy['term'];
+      $titles[] = ResultText::clean($this->text($node, 'field_course_title'));
+      $row['image_url'] = $row['image_url'] ?: ResultText::imageUrl($this->text($node, 'field_book_image_url'));
+    }
+    $row['details'] = array_values($details);
+    $row['meta'] = ResultText::clean(implode(' · ', array_filter([
+      $this->text($first, 'field_book_author'),
+      $this->firstAndMore($codes),
+      $this->firstAndMore($terms),
+    ])));
+    // A book used in different classes has no one course to name.
+    if (count(array_unique($titles)) > 1) {
+      $row['summary'] = '';
+    }
+    return $row;
+  }
+
+  /**
+   * The first different value, and how many more there are: HIST 7922 + 2 more.
+   */
+  private function firstAndMore(array $values): string {
+    $values = array_values(array_unique(array_filter($values)));
+    return match (count($values)) {
+      0 => '',
+      1 => $values[0],
+      default => sprintf('%s + %d more', $values[0], count($values) - 1),
+    };
   }
 
   /**
@@ -244,7 +451,7 @@ class LocalSearch {
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,
       'image_url' => $node->bundle() === 'e_books' ? ResultText::imageUrl($this->text($node, 'field_book_image_url')) : NULL,
-      'details' => $node->bundle() === 'e_books' ? $this->bookDetails($node) : NULL,
+      'details' => $node->bundle() === 'e_books' ? [$this->bookDetails($node)] : NULL,
     ];
   }
 
@@ -264,7 +471,7 @@ class LocalSearch {
   }
 
   /**
-   * An E-Textbook's course details, for the row's Book details.
+   * One copy's course details, for the row's Book details.
    */
   private function bookDetails(NodeInterface $node): array {
     $instructor = ResultText::clean($this->text($node, 'field_instructor'));

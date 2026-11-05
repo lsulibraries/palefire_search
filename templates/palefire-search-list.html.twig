@@ -13,8 +13,9 @@
  *   title and summary are already escaped, with the searched words in <mark>.
  *   image is a local picture's render array. image_url is a cover from another
  *   host, sent no referrer so the search stays private. alt is empty on both:
- *   the title beside the picture already names the result. details is an
- *   E-Textbook's [class, instructor, instructor_is_email, section, term].
+ *   the title beside the picture already names the result. details lists an
+ *   E-Textbook's copies, each [class, instructor, instructor_is_email, section,
+ *   term].
  * - failed: the source couldn't be reached. Not the same as no results.
  * - simplified: what was searched instead, when the source can't use operators.
  * - limited: how many can be paged to, on the last page when more were found.
@@ -59,17 +60,23 @@
           {% endif %}
           {% if item.details %}
             <details class="pf-index-row__details">
-              <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>{{ 'Book details'|t }}</summary>
+              <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>{{ 'Book details'|t }}{% if item.details|length > 1 %} · {{ '@count sections'|t({'@count': item.details|length}) }}{% endif %}</summary>
               <div class="pf-index-row__label">
                 {% if item.image_url %}
                   <div class="pf-index-row__label-cover"><img src="{{ item.image_url }}" alt="" width="180" height="270" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>
                 {% endif %}
-                <dl>
-                  {% if item.details.class %}<div><dt>{{ 'Class'|t }}</dt><dd>{{ item.details.class }}</dd></div>{% endif %}
-                  {% if item.details.instructor %}<div><dt>{{ 'Instructor'|t }}</dt><dd>{% if item.details.instructor_is_email %}<a href="mailto:{{ item.details.instructor }}">{{ item.details.instructor }}</a>{% else %}{{ item.details.instructor }}{% endif %}</dd></div>{% endif %}
-                  {% if item.details.section %}<div><dt>{{ 'Section'|t }}</dt><dd>{{ item.details.section }}</dd></div>{% endif %}
-                  {% if item.details.term %}<div><dt>{{ 'Term'|t }}</dt><dd>{{ item.details.term }}</dd></div>{% endif %}
-                </dl>
+                <ul class="pf-index-row__copies" role="list">
+                  {% for copy in item.details %}
+                    <li>
+                      <dl>
+                        {% if copy.class %}<div><dt>{{ 'Class'|t }}</dt><dd>{{ copy.class }}</dd></div>{% endif %}
+                        {% if copy.instructor %}<div><dt>{{ 'Instructor'|t }}</dt><dd>{% if copy.instructor_is_email %}<a href="mailto:{{ copy.instructor }}">{{ copy.instructor }}</a>{% else %}{{ copy.instructor }}{% endif %}</dd></div>{% endif %}
+                        {% if copy.section %}<div><dt>{{ 'Section'|t }}</dt><dd>{{ copy.section }}</dd></div>{% endif %}
+                        {% if copy.term %}<div><dt>{{ 'Term'|t }}</dt><dd>{{ copy.term }}</dd></div>{% endif %}
+                      </dl>
+                    </li>
+                  {% endfor %}
+                </ul>
               </div>
             </details>
           {% endif %}
