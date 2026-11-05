@@ -1,0 +1,10 @@
+{
+  "name": "lsulibraries/palefire_search",
+  "description": "The Index: the Palefire search page at /v2/search.",
+  "type": "drupal-custom-module",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "drupal/core": "^11",
+    "drupal/search_api": "*"
+  }
+}

@@ -1,0 +1,6 @@
+services:
+  palefire_search.local:
+    class: Drupal\palefire_search\LocalSearch
+    arguments: ['@entity_type.manager', '@entity.repository', '@date.formatter']
+  palefire_search.external:
+    class: Drupal\palefire_search\ExternalSearch

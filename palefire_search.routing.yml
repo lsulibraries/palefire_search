@@ -1,0 +1,17 @@
+palefire_search.page:
+  path: '/v2/search'
+  defaults:
+    _controller: '\Drupal\palefire_search\Controller\SearchController::page'
+    _title_callback: '\Drupal\palefire_search\Controller\SearchController::title'
+  requirements:
+    _access: 'TRUE'
+
+# One external source's section, loaded after the page so a slow or failing
+# service can't hold the page up. Answers with an HTML fragment.
+palefire_search.source:
+  path: '/v2/search/source/{source}'
+  defaults:
+    _controller: '\Drupal\palefire_search\Controller\SearchController::source'
+  requirements:
+    _access: 'TRUE'
+    source: '[a-z_]+'

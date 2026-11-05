@@ -1,0 +1,9 @@
+name: Palefire Search
+description: "The Index: the Palefire search page at /v2/search, across the site's search index and the Libraries' external services."
+package: Custom
+type: module
+core_version_requirement: ^11
+dependencies:
+  - drupal:node
+  - drupal:views
+  - search_api:search_api

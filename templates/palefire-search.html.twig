@@ -1,0 +1,159 @@
+{#
+/**
+ * @file
+ * The Index: the search page at /v2/search.
+ *
+ * Styles and script: palefire/index-search in the theme. Without JavaScript
+ * the filters sit in the page with an Apply button, and a late section offers
+ * a link to the source's own list. With it, filters apply as they're chosen
+ * from 62rem, and open in a drawer on smaller screens.
+ *
+ * Variables:
+ * - query, mode: the current search.
+ * - action: the forms' address.
+ * - modes: [label, url, current], the tabs.
+ * - filters: [title, name, options: [label, value, count, checked]]. count is
+ *   NULL for a source that's only counted by searching it.
+ * - chips: [label, url], the chosen filters as links that remove them.
+ * - clear_url: the search with no filters.
+ * - selected_count: how many filters are chosen.
+ * - total: the list's total, when there's one list.
+ * - sort, sorts: the current sort and those on offer (value => label).
+ * - links: [label, url], searches elsewhere.
+ * - sections: [key, label, list or late_url and full_url].
+ * - list: one list, when a source is chosen or the mode is merged.
+ * - notice: a message about this search.
+ */
+#}
+{# data-no-swup on whatever changes the search: js/index-search.js swaps the
+   results for those, and Swup would prefetch them on hover, running a whole
+   search each time. Result links stay Swup's. #}
+<div class="pf-index" data-pf-index>
+  <header class="pf-index__head">
+    <h1 class="pf-index__title">{{ 'Index'|t }}</h1>
+    <p class="pf-index__lede">{{ 'Search articles, databases, archives and library pages.'|t }}</p>
+    <form class="pf-index__form" role="search" method="get" action="{{ action }}">
+      <label class="visually-hidden" for="pf-index-q">{{ 'Search LSU Libraries'|t }}</label>
+      <div class="pf-index__field">
+        <svg class="pf-index__field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+        <input class="pf-index__input" type="search" id="pf-index-q" name="q" value="{{ query }}" maxlength="128" autocomplete="off" enterkeyhint="search">
+        {% if mode != 'all' %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
+        <button class="pf-index__submit" type="submit">{{ 'Search'|t }}</button>
+      </div>
+    </form>
+    <nav class="pf-index__modes" aria-label="{{ 'What to search'|t }}" data-no-swup>
+      <ul role="list">
+        {% for link in modes %}
+          <li><a href="{{ link.url }}"{% if link.current %} aria-current="page"{% endif %}>{{ link.label }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </header>
+
+  <div class="pf-index__main" data-pf-index-main tabindex="-1">
+  {% if not query %}
+    <p class="pf-index__prompt">{{ 'Enter a word or two to begin.'|t }}</p>
+  {% else %}
+    {% if notice %}
+      <p class="pf-index__notice" role="status">{{ notice }}</p>
+    {% endif %}
+
+    <div class="pf-index__body" data-pf-index-body>
+      <button class="pf-index__filters-open" type="button" data-pf-index-open aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+        {{ 'Filters'|t }}{% if selected_count %} ({{ selected_count }}){% endif %}
+      </button>
+
+      {# A <dialog> so the drawer gets focus handling, Esc and a backdrop from
+         the browser. From 62rem, and without JavaScript, CSS shows it in the
+         page instead. #}
+      <dialog class="pf-index__filters" data-pf-index-filters aria-labelledby="pf-index-filters-title">
+        <form id="pf-index-filter-form" method="get" action="{{ action }}" data-pf-index-form>
+          <input type="hidden" name="q" value="{{ query }}">
+          {% if mode != 'all' %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
+          <div class="pf-index__filters-head">
+            <h2 class="pf-index__filters-title" id="pf-index-filters-title">{{ 'Filters'|t }}</h2>
+            <button class="pf-index__filters-close" type="button" data-pf-index-close>{{ 'Close'|t }}</button>
+          </div>
+          {% for group in filters %}
+            <fieldset class="pf-index__group">
+              <legend class="pf-index__group-title">{{ group.title }}</legend>
+              {% for option in group.options %}
+                <label class="pf-index__option">
+                  <input type="checkbox" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
+                  <span class="pf-index__option-label">{{ option.label }}</span>
+                  {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}</span>{% endif %}
+                </label>
+              {% endfor %}
+            </fieldset>
+          {% endfor %}
+          <button class="pf-index__apply" type="submit" data-pf-index-apply>{{ 'Show results'|t }}</button>
+        </form>
+      </dialog>
+
+      <div class="pf-index__results">
+        {% if chips or total is not null or sorts %}
+          <div class="pf-index__toolbar">
+            {% if total is not null %}
+              <p class="pf-index__total" data-pf-index-count>{{ '@total results'|t({'@total': total|number_format}) }}</p>
+            {% endif %}
+            {% if sorts %}
+              <div class="pf-index__sort">
+                <label for="pf-index-sort">{{ 'Sort by'|t }}</label>
+                <select id="pf-index-sort" name="sort" form="pf-index-filter-form">
+                  {% for value, label in sorts %}
+                    <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            {% endif %}
+          </div>
+          {% if chips %}
+            <div class="pf-index__chips" data-no-swup>
+              <span class="visually-hidden" id="pf-index-chips">{{ 'Filters chosen'|t }}</span>
+              <ul role="list" aria-labelledby="pf-index-chips">
+                {% for chip in chips %}
+                  <li><a class="pf-index__chip" href="{{ chip.url }}"><span class="visually-hidden">{{ 'Remove filter:'|t }} </span>{{ chip.label }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></a></li>
+                {% endfor %}
+              </ul>
+              <a class="pf-index__clear" href="{{ clear_url }}">{{ 'Clear all'|t }}</a>
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if list %}
+          <section aria-labelledby="pf-index-results"><h2 class="visually-hidden" id="pf-index-results">{{ 'Results'|t }}</h2>{{ list }}</section>
+        {% endif %}
+
+        {% for section in sections %}
+          <section class="pf-index-section" aria-labelledby="pf-index-{{ section.key }}">
+            <h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2>
+            {% if section.late_url %}
+              <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">
+                <p class="pf-index-list__status"><a href="{{ section.full_url }}" data-no-swup>{{ 'Show results from @label'|t({'@label': section.label}) }}</a></p>
+              </div>
+            {% else %}
+              {{ section.list }}
+            {% endif %}
+          </section>
+        {% endfor %}
+
+        {% if sections is empty and not list %}
+          <p class="pf-index-list__status">{{ 'No results.'|t }}</p>
+        {% endif %}
+
+        {% if links %}
+          <aside class="pf-index__elsewhere" aria-label="{{ 'Search elsewhere'|t }}">
+            <h2 class="pf-index-section__title">{{ 'Search elsewhere'|t }}</h2>
+            <ul role="list">
+              {% for link in links %}
+                <li><a href="{{ link.url }}">{{ link.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a></li>
+              {% endfor %}
+            </ul>
+          </aside>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+  </div>
+</div>

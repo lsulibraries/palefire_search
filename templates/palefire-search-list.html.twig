@@ -1,0 +1,61 @@
+{#
+/**
+ * @file
+ * One list of results. Also the fragment a late section loads, so its count
+ * and links live here.
+ *
+ * Variables:
+ * - label: the source's name.
+ * - total: how many results, or NULL when the source couldn't be reached.
+ * - items: [title, url, external, summary, meta, source, image, image_url].
+ *   title and summary are already escaped, with the searched words in <mark>.
+ *   image is a local picture's render array. image_url is a cover from another
+ *   host, sent no referrer so the search stays private. alt is empty on both:
+ *   the title beside the picture already names the result.
+ * - failed: the source couldn't be reached. Not the same as no results.
+ * - simplified: what was searched instead, when the source can't use operators.
+ * - more_url, more_label: a link to go further.
+ * - pager: a pager, or NULL.
+ */
+#}
+<div class="pf-index-list" data-pf-index-total="{{ total }}">
+  {% if simplified %}
+    <p class="pf-index-list__status">{{ '@label can’t use AND, OR or NOT, so it searched for: @terms'|t({'@label': label, '@terms': simplified}) }}</p>
+  {% endif %}
+  {% if failed %}
+    <p class="pf-index-list__status">{{ 'We couldn’t reach @label just now.'|t({'@label': label}) }}
+      {% if more_url %}<a href="{{ more_url }}">{{ more_label }}</a>{% endif %}
+    </p>
+  {% elseif not items %}
+    <p class="pf-index-list__status">{{ 'No results.'|t }}
+      {% if more_url %}<a href="{{ more_url }}">{{ more_label }}</a>{% endif %}
+    </p>
+  {% else %}
+    <ol class="pf-index-list__rows" role="list">
+      {% for item in items %}
+        <li class="pf-index-row{{ item.image or item.image_url ? ' pf-index-row--image' }}">
+          <div class="pf-index-row__text">
+          <h3 class="pf-index-row__title">
+            <a href="{{ item.url }}">{{ item.title }}{% if item.external %}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a>
+          </h3>
+          {% if item.source or item.meta %}
+            <p class="pf-index-row__meta">{{ [item.source, item.meta]|filter(v => v)|join(' · ') }}</p>
+          {% endif %}
+          {% if item.summary|render %}
+            <p class="pf-index-row__summary">{{ item.summary }}</p>
+          {% endif %}
+          </div>
+          {% if item.image %}
+            <div class="pf-index-row__thumb">{{ item.image }}</div>
+          {% elseif item.image_url %}
+            <div class="pf-index-row__thumb pf-index-row__thumb--cover"><img src="{{ item.image_url }}" alt="" width="88" height="110" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    {% if more_url %}
+      <p class="pf-index-list__more" data-no-swup><a href="{{ more_url }}">{{ more_label }}</a></p>
+    {% endif %}
+    {% if pager %}<div class="pf-index-list__pager" data-no-swup>{{ pager }}</div>{% endif %}
+  {% endif %}
+</div>

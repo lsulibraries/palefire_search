@@ -1,0 +1,45 @@
+<?php
+
+/**
+ * @file
+ * The Index: the Palefire search page at /v2/search.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function palefire_search_theme(): array {
+  return [
+    'palefire_search' => [
+      'variables' => [
+        'query' => '',
+        'mode' => 'all',
+        'modes' => [],
+        'filters' => [],
+        'chips' => [],
+        'clear_url' => NULL,
+        'selected_count' => 0,
+        'total' => NULL,
+        'sort' => NULL,
+        'sorts' => [],
+        'links' => [],
+        'sections' => [],
+        'list' => NULL,
+        'notice' => NULL,
+        'action' => '',
+      ],
+    ],
+    'palefire_search_list' => [
+      'variables' => [
+        'label' => '',
+        'total' => NULL,
+        'items' => [],
+        'failed' => FALSE,
+        'simplified' => NULL,
+        'more_url' => NULL,
+        'more_label' => NULL,
+        'pager' => NULL,
+      ],
+    ],
+  ];
+}
