@@ -65,6 +65,14 @@ final class ResultText {
   }
 
   /**
+   * Whether an address goes through the library's proxy, which asks anyone
+   * off campus to sign in with their LSU account.
+   */
+  public static function needsLogin(string $url): bool {
+    return (bool) preg_match('#^https?://([^/?]+\.)?libezp\.lib\.lsu\.edu([/?]|$)#i', $url);
+  }
+
+  /**
    * Escapes plain text and marks the searched words at their starts.
    *
    * Works on plain text, never rendered HTML, so a word can't land inside a

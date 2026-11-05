@@ -9,6 +9,7 @@ use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Url;
 use Drupal\palefire_search\ExternalSearch;
 use Drupal\palefire_search\LocalSearch;
+use Drupal\palefire_search\ResultText;
 use Drupal\palefire_search\SearchSources;
 use Drupal\palefire_search\SearchTerms;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -295,6 +296,9 @@ class SearchController extends ControllerBase {
    * A results list's render array.
    */
   private function listBuild(string $label, array $results, ?string $more_url, ?string $more_label, ?int $page = NULL): array {
+    foreach ($results['items'] as $index => $item) {
+      $results['items'][$index]['login'] = ResultText::needsLogin((string) ($item['url'] ?? ''));
+    }
     $build = [
       '#theme' => 'palefire_search_list',
       '#label' => $label,

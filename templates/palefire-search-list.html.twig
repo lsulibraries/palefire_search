@@ -8,7 +8,8 @@
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
  * - items: [title, url, external, summary, meta, source, type, full_text_url,
- *   image, image_url]. type says what the record is, such as Book.
+ *   image, image_url, login]. type says what the record is, such as Book. login
+ *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
  *   image is a local picture's render array. image_url is a cover from another
  *   host, sent no referrer so the search stays private. alt is empty on both:
@@ -38,8 +39,11 @@
       {% for item in items %}
         <li class="pf-index-row{{ item.image or item.image_url ? ' pf-index-row--image' }}">
           <div class="pf-index-row__text">
-          {% if item.type or item.source %}
-            <p class="pf-index-row__type">{{ item.source ?: item.type }}</p>
+          {% if item.type or item.source or item.login %}
+            <p class="pf-index-row__tags">
+              {% if item.type or item.source %}<span class="pf-index-row__type">{{ item.source ?: item.type }}</span>{% endif %}
+              {% if item.login %}<span class="pf-index-row__login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>{{ 'LSU login'|t }}<span class="visually-hidden"> {{ 'required'|t }}</span></span>{% endif %}
+            </p>
           {% endif %}
           <h3 class="pf-index-row__title">
             <a href="{{ item.url }}">{{ item.title }}{% if item.external %}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a>
