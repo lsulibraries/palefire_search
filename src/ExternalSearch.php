@@ -110,16 +110,13 @@ class ExternalSearch {
 
   /**
    * A record's cover from Discovery: the larger size if there's a choice.
-   *
-   * Over https only, since a page on https shouldn't load mixed content.
    */
   private function cover(ResultRow $row): ?string {
     $covers = [];
     foreach ($row->image_info ?? [] as $image) {
       $covers[$image['Size'] ?? ''] = (string) ($image['Target'] ?? '');
     }
-    $url = $covers['medium'] ?? $covers['thumb'] ?? '';
-    return str_starts_with($url, 'https://') ? $url : NULL;
+    return ResultText::imageUrl($covers['medium'] ?? $covers['thumb'] ?? '');
   }
 
   /**

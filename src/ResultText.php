@@ -68,4 +68,17 @@ final class ResultText {
     return Markup::create($safe);
   }
 
+  /**
+   * A cover's address, over https so a secure page has no mixed content, or
+   * NULL. One that doesn't answer over https is removed by the page's script.
+   */
+  public static function imageUrl(string $url): ?string {
+    $url = trim($url);
+    if (str_starts_with($url, '//')) {
+      $url = 'https:' . $url;
+    }
+    $url = preg_replace('#^http://#i', 'https://', $url);
+    return preg_match('#^(https://|/[^/])#i', $url) ? $url : NULL;
+  }
+
 }

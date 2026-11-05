@@ -54,7 +54,8 @@ class LocalSearch {
    * One page of results across these sources.
    *
    * @return array
-   *   total, and items: [title, url, external, summary, meta, source, image].
+   *   total, and items: [title, url, external, summary, meta, source, image,
+   *   image_url, details].
    */
   public function search(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
     $search = $this->build($source_keys, $query, $refines);
@@ -216,7 +217,7 @@ class LocalSearch {
       'e_books' => [
         $this->text($node, 'field_book_title') ?: $node->label(),
         $this->text($node, 'field_course_title'),
-        implode(' · ', array_filter([$this->text($node, 'field_book_author'), $this->text($node, 'field_course_code')])),
+        implode(' · ', array_filter([$this->text($node, 'field_book_author'), $this->text($node, 'field_course_code'), $this->term($node)])),
         $this->linkField($node, ['field_book_url']),
       ],
       'staff' => [
@@ -242,7 +243,33 @@ class LocalSearch {
       'meta' => ResultText::clean($meta),
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,
+      'image_url' => $node->bundle() === 'e_books' ? ResultText::imageUrl($this->text($node, 'field_book_image_url')) : NULL,
+      'details' => $node->bundle() === 'e_books' ? $this->bookDetails($node) : NULL,
     ];
+  }
+
+  /**
+   * An E-Textbook's course details, for the row's Book details.
+   */
+  private function bookDetails(NodeInterface $node): array {
+    $instructor = ResultText::clean($this->text($node, 'field_instructor'));
+    return [
+      'class' => ResultText::clean(implode(': ', array_filter([$this->text($node, 'field_course_code'), $this->text($node, 'field_course_title')]))),
+      'instructor' => $instructor,
+      'instructor_is_email' => (bool) filter_var($instructor, FILTER_VALIDATE_EMAIL),
+      'section' => ResultText::clean($this->text($node, 'field_section')),
+      'term' => $this->term($node),
+    ];
+  }
+
+  /**
+   * An E-Textbook's term as people say it: LSUAM_FALL_2026 is Fall 2026.
+   */
+  private function term(NodeInterface $node): string {
+    $term = $this->text($node, 'field_term');
+    return preg_match('/_(FALL|SPRING|SUMMER|WINTER)[A-Z0-9]*_(\d{4})$/', $term, $match)
+      ? ucfirst(strtolower($match[1])) . ' ' . $match[2]
+      : ResultText::clean($term);
   }
 
   /**
