@@ -36,6 +36,7 @@ function palefire_search_theme(): array {
         'items' => [],
         'failed' => FALSE,
         'simplified' => NULL,
+        'limited' => NULL,
         'more_url' => NULL,
         'more_label' => NULL,
         'pager' => NULL,

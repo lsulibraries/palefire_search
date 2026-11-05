@@ -6,13 +6,17 @@ use Drupal\views\ResultRow;
 use Drupal\views\Views;
 
 /**
- * Searches outside services through their existing Views.
+ * Searches outside services.
  *
- * Runs the View for its data and ignores its markup. The connector modules
- * (eds, libguides) keep the credentials and the calls. When a service moves
- * (Discovery to Alma), add an adapter and point the source at the new View.
+ * Discovery has its own class, for the filters its View can't pass. Research
+ * Guides runs its View for the data and ignores the markup. The connector
+ * modules (eds, libguides) keep the credentials and the calls.
  */
 class ExternalSearch {
+
+  public function __construct(
+    private readonly DiscoverySearch $discovery,
+  ) {}
 
   /**
    * One page of results.
@@ -21,20 +25,25 @@ class ExternalSearch {
    * like no results. They leave the View's total unset when that happens,
    * while a real empty search has a total of 0: that's what "failed" reads.
    *
+   * @param array $source
+   *   The source's definition.
+   * @param string $query
+   *   The search as typed.
+   * @param int $page
+   *   The page, from 0.
+   * @param int $limit
+   *   Results per page.
+   * @param string $sort
+   *   The sort's name.
+   * @param array $filters
+   *   refine: the source's chosen filters; from, to: years. Only Discovery has
+   *   any.
+   *
    * @return array
-   *   total, failed, and items: [title, url, external, summary, meta, source,
-   *   image_url].
+   *   total, reachable (when fewer can be paged to), failed, and items: [title,
+   *   url, external, summary, meta, source, type, full_text_url, image_url].
    */
-  public function search(array $source, string $query, int $page, int $limit, string $sort = 'relevance'): array {
-    $view = Views::getView($source['view']);
-    if (!$view || !$view->setDisplay($source['display'])) {
-      return ['total' => NULL, 'failed' => TRUE, 'items' => []];
-    }
-
-    if (isset($source['sort_handler'], $source['sort_values'][$sort])) {
-      $view->setHandlerOption($source['display'], 'sort', $source['sort_handler'], 'order', $source['sort_values'][$sort]);
-    }
-
+  public function search(array $source, string $query, int $page, int $limit, string $sort = 'relevance', array $filters = []): array {
     // Each service reads operators its own way.
     $terms = match ($source['adapter']) {
       'discovery' => SearchTerms::forDiscovery($query),
@@ -44,8 +53,41 @@ class ExternalSearch {
     if ($terms === '') {
       return ['total' => 0, 'failed' => FALSE, 'items' => []];
     }
+
+    $results = $source['adapter'] === 'discovery'
+      ? $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance')
+      : $this->guidesResults($source, $terms, $page, $limit);
+
     // Research Guides can't honor operators, and the page says so.
-    $simplified = $source['adapter'] === 'guides' && SearchTerms::hasOperators($query) ? $terms : NULL;
+    $results['simplified'] = $source['adapter'] === 'guides' && SearchTerms::hasOperators($query) ? $terms : NULL;
+
+    $words = SearchSources::indexableWords($query);
+    foreach ($results['items'] as $index => $item) {
+      $item['title'] = ResultText::highlight(ResultText::clean($item['title']), $words);
+      $item['summary'] = ResultText::highlight(ResultText::summary($item['summary']), $words);
+      $item['meta'] = ResultText::clean($item['meta']);
+      $item['external'] = TRUE;
+      $item['source'] = NULL;
+      $results['items'][$index] = $item;
+    }
+    return $results;
+  }
+
+  /**
+   * Type counts from the latest Discovery search, by filter name.
+   */
+  public function discoveryCounts(): array {
+    return $this->discovery->counts();
+  }
+
+  /**
+   * A page of Research Guides from its View.
+   */
+  private function guidesResults(array $source, string $terms, int $page, int $limit): array {
+    $view = Views::getView($source['view']);
+    if (!$view || !$view->setDisplay($source['display'])) {
+      return ['total' => NULL, 'failed' => TRUE, 'items' => []];
+    }
 
     // The connectors put the term into an address as is, so "r&b" would be
     // cut at the "&". Encoding it here carries it through whole, without
@@ -59,64 +101,8 @@ class ExternalSearch {
       return ['total' => NULL, 'failed' => TRUE, 'items' => []];
     }
 
-    $words = SearchSources::indexableWords($query);
-    $items = [];
-    foreach ($view->result as $row) {
-      $item = match ($source['adapter']) {
-        'discovery' => $this->discovery($row),
-        'guides' => $this->guides($row),
-        default => NULL,
-      };
-      if ($item) {
-        $item['title'] = ResultText::highlight(ResultText::clean($item['title']), $words);
-        $item['summary'] = ResultText::highlight(ResultText::summary($item['summary']), $words);
-        $item['meta'] = ResultText::clean($item['meta']);
-        $item['external'] = TRUE;
-        $item['source'] = NULL;
-        $items[] = $item;
-      }
-    }
-    return ['total' => (int) $view->total_rows, 'failed' => FALSE, 'items' => $items, 'simplified' => $simplified];
-  }
-
-  /**
-   * A Discovery record. Its details are a list of named items.
-   */
-  private function discovery(ResultRow $row): ?array {
-    $details = [];
-    foreach ($row->items ?? [] as $detail) {
-      $details[$detail['Name'] ?? ''][] = $detail['Data'] ?? '';
-    }
-    $title = $details['Title'][0] ?? '';
-    if ($title === '') {
-      return NULL;
-    }
-    $url = (string) ($row->p_link ?? '');
-    // Off campus, a record's link has to pass through the proxy.
-    if ($url !== '' && !str_contains($url, 'libezp.lib.lsu.edu')) {
-      $url = 'https://libezp.lib.lsu.edu/login?url=' . $url;
-    }
-    return [
-      'title' => $title,
-      'url' => ResultText::url($url),
-      'summary' => $details['Abstract'][0] ?? '',
-      'meta' => implode(' · ', array_filter([
-        $row->header['PubType'] ?? '',
-        ResultText::clean($details['Author'][0] ?? ''),
-      ])),
-      'image_url' => $this->cover($row),
-    ];
-  }
-
-  /**
-   * A record's cover from Discovery: the larger size if there's a choice.
-   */
-  private function cover(ResultRow $row): ?string {
-    $covers = [];
-    foreach ($row->image_info ?? [] as $image) {
-      $covers[$image['Size'] ?? ''] = (string) ($image['Target'] ?? '');
-    }
-    return ResultText::imageUrl($covers['medium'] ?? $covers['thumb'] ?? '');
+    $items = array_values(array_filter(array_map($this->guides(...), $view->result)));
+    return ['total' => (int) $view->total_rows, 'failed' => FALSE, 'items' => $items];
   }
 
   /**

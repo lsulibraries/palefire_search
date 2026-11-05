@@ -13,7 +13,8 @@
  * - action: the forms' address.
  * - modes: [label, url, current], the tabs.
  * - filters: [title, name, options: [label, value, count, checked]]. count is
- *   NULL for a source that's only counted by searching it.
+ *   NULL for a source that's only counted by searching it. A group with years
+ *   instead of options is a year range: [from, to].
  * - chips: [label, url], the chosen filters as links that remove them.
  * - clear_url: the search with no filters.
  * - selected_count: how many filters are chosen.
@@ -30,15 +31,15 @@
    search each time. Result links stay Swup's. #}
 <div class="pf-index" data-pf-index>
   <header class="pf-index__head">
+    <p class="pf-index__kicker">{{ 'LSU Libraries'|t }}<span class="visually-hidden">, </span><span class="pf-index__kicker-place">{{ 'Search'|t }}</span></p>
     <h1 class="pf-index__title">{{ 'Index'|t }}</h1>
     <p class="pf-index__lede">{{ 'Search articles, databases, archives and library pages.'|t }}</p>
     <form class="pf-index__form" role="search" method="get" action="{{ action }}">
       <label class="visually-hidden" for="pf-index-q">{{ 'Search LSU Libraries'|t }}</label>
       <div class="pf-index__field">
-        <svg class="pf-index__field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
         <input class="pf-index__input" type="search" id="pf-index-q" name="q" value="{{ query }}" maxlength="128" autocomplete="off" enterkeyhint="search">
         {% if mode != 'all' %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
-        <button class="pf-index__submit" type="submit">{{ 'Search'|t }}</button>
+        <button class="pf-index__submit" type="submit">{{ 'Search'|t }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button>
       </div>
     </form>
     <nav class="pf-index__modes" aria-label="{{ 'What to search'|t }}" data-no-swup>
@@ -78,6 +79,18 @@
           {% for group in filters %}
             <fieldset class="pf-index__group">
               <legend class="pf-index__group-title">{{ group.title }}</legend>
+              {% if group.years is defined %}
+                <div class="pf-index__years">
+                  <div>
+                    <label for="pf-index-from">{{ 'From'|t }}</label>
+                    <input type="text" id="pf-index-from" name="from" value="{{ group.years.from }}" inputmode="numeric" pattern="[12][0-9]{3}" maxlength="4" autocomplete="off" title="{{ 'A four-digit year'|t }}" data-pf-index-year>
+                  </div>
+                  <div>
+                    <label for="pf-index-to">{{ 'To'|t }}</label>
+                    <input type="text" id="pf-index-to" name="to" value="{{ group.years.to }}" inputmode="numeric" pattern="[12][0-9]{3}" maxlength="4" autocomplete="off" title="{{ 'A four-digit year'|t }}" data-pf-index-year>
+                  </div>
+                </div>
+              {% endif %}
               {% for option in group.options %}
                 <label class="pf-index__option">
                   <input type="checkbox" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
@@ -126,8 +139,8 @@
         {% endif %}
 
         {% for section in sections %}
-          <section class="pf-index-section" aria-labelledby="pf-index-{{ section.key }}">
-            <h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2>
+          <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" aria-labelledby="pf-index-{{ section.key }}">
+            <div class="pf-index-rule"><span class="pf-index-rule__num" aria-hidden="true"></span><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2></div>
             {% if section.late_url %}
               <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">
                 <p class="pf-index-list__status"><a href="{{ section.full_url }}" data-no-swup>{{ 'Show results from @label'|t({'@label': section.label}) }}</a></p>
@@ -144,7 +157,7 @@
 
         {% if links %}
           <aside class="pf-index__elsewhere" aria-label="{{ 'Search elsewhere'|t }}">
-            <h2 class="pf-index-section__title">{{ 'Search elsewhere'|t }}</h2>
+            <div class="pf-index-rule"><span class="pf-index-rule__num" aria-hidden="true"></span><h2 class="pf-index-section__title">{{ 'Search elsewhere'|t }}</h2></div>
             <ul role="list">
               {% for link in links %}
                 <li><a href="{{ link.url }}">{{ link.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a></li>
@@ -155,5 +168,16 @@
       </div>
     </div>
   {% endif %}
+  </div>
+
+  {# Outside the swapped part, so it stays through a search. Decorative: the
+     announcement says the same. js/index-search.js also copies the mark into a
+     late section while it loads. pathLength="1" lets the CSS trace each letter
+     without measuring it, as the site's own loading mark does. #}
+  <div class="pf-index__loading" data-pf-index-loading aria-hidden="true">
+    <div class="pf-index__mark">
+      <svg viewBox="-1 -1 526 165" width="524" height="163" focusable="false"><polygon pathLength="1" points="56,129.8 146.2,129.8 146.2,162.7 0,162.7 0,0 56,0"/><path pathLength="1" d="M208.3,0h125.9v33.2h-99.3c-10.4,0-18.9,6.3-18.9,14v17.5h118.2v61.8c0,19.9-21.9,36.2-48.9,36.2H159.6v-33.2h99.1c10.6,0,19.1-6.3,19.1-14V97.8H159.6V36.2C159.6,16.3,181.5,0,208.3,0"/><path pathLength="1" d="M466.9,0h56.2v126.5c0,19.9-21.9,36.2-48.7,36.2H349V0.4h55.8v129.4h43c10.6,0,19.1-6.3,19.1-14.2V0z"/></svg>
+      <span class="pf-index__mark-label">{{ 'Searching'|t }}</span>
+    </div>
   </div>
 </div>

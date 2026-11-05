@@ -29,7 +29,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class SearchController extends ControllerBase {
 
   /**
-   * Results per section in a sections layout.
+   * Results per section in a sections layout, unless a source sets its own.
    */
   private const SECTION_LIMIT = 3;
 
@@ -88,6 +88,7 @@ class SearchController extends ControllerBase {
 
     [$chosen, $refines] = $this->selection($parameters, $mode);
     $selected = array_values(array_intersect($mode['sources'], array_unique([...$chosen, ...array_keys($refines)])));
+    $years = array_filter($selected, static fn(string $key): bool => !empty(SearchSources::get($key)['year_filter'])) ? $this->years($parameters) : [];
     $sorts = SearchSources::sorts($selected);
     $sort = is_string($parameters['sort'] ?? NULL) && isset($sorts[$parameters['sort']]) ? $parameters['sort'] : 'relevance';
     $page = is_scalar($parameters['page'] ?? NULL) ? max(0, (int) $parameters['page']) : 0;
@@ -139,7 +140,7 @@ class SearchController extends ControllerBase {
 
     // The results first: they record counts the filters can then reuse.
     if (count($selected) === 1 || $mode['layout'] === 'merged') {
-      [$build['#list'], $total] = $this->fullList($mode, $selected, $refines, $query, $page, $sort);
+      [$build['#list'], $total] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
       $build['#total'] = $total;
       if (count($sorts) > 1) {
         $build['#sort'] = $sort;
@@ -147,13 +148,13 @@ class SearchController extends ControllerBase {
       }
     }
     else {
-      $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines);
+      $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines, $years);
     }
 
-    $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $query);
-    $build['#chips'] = $this->chips($mode_key, $query, $chosen, $refines, $sort);
+    $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $years, $query);
+    $build['#chips'] = $this->chips($mode_key, $query, $chosen, $refines, $years, $sort);
     $build['#clear_url'] = $this->address($mode_key, $query);
-    $build['#selected_count'] = count($chosen) + array_sum(array_map('count', $refines));
+    $build['#selected_count'] = count($chosen) + array_sum(array_map('count', $refines)) + ($years ? 1 : 0);
     return $build;
   }
 
@@ -165,12 +166,27 @@ class SearchController extends ControllerBase {
     if (($definition['kind'] ?? '') !== 'external') {
       throw new NotFoundHttpException();
     }
-    $query = $this->query($request->query->all());
+    $parameters = $request->query->all();
+    $query = $this->query($parameters);
+    $refines = $this->selection($parameters, ['sources' => [$source]])[1];
+    $years = !empty($definition['year_filter']) ? $this->years($parameters) : [];
+    $limit = $definition['section_limit'] ?? self::SECTION_LIMIT;
     $results = $query === ''
       ? ['total' => 0, 'failed' => FALSE, 'items' => []]
-      : $this->external->search($definition, $query, 0, self::SECTION_LIMIT);
+      : $this->external->search($definition, $query, 0, $limit, 'relevance', ['refine' => $refines[$source] ?? [], ...$years]);
 
-    $list = $this->listBuild($definition['label'], $results, SearchSources::moreUrl($definition, $query), $definition['more_label'] ?? NULL);
+    $more_url = SearchSources::moreUrl($definition, $query);
+    $more_label = $definition['more_label'] ?? NULL;
+    // A source with its own list here sends people there. When it found nothing
+    // or failed, its own site is still worth offering.
+    if (!empty($definition['lists_here']) && !empty($results['items'])) {
+      $modes = SearchSources::modes();
+      $mode_key = is_string($parameters['mode'] ?? NULL) && isset($modes[$parameters['mode']]) ? $parameters['mode'] : 'all';
+      $more_url = $results['total'] > $limit ? $this->address($mode_key, $query, [$source], $refines, 'relevance', $years) : NULL;
+      $more_label = 'Show all @total';
+    }
+
+    $list = $this->listBuild($definition['label'], $results, $more_url, $more_label);
     $response = new Response((string) $this->renderer->renderInIsolation($list));
     $this->applyExternalCaching($response, $results['failed'] ?? FALSE);
     return $response;
@@ -195,11 +211,28 @@ class SearchController extends ControllerBase {
   }
 
   /**
+   * The years chosen in the address, earliest first. Anything else is ignored.
+   */
+  private function years(array $parameters): array {
+    $years = [];
+    foreach (['from', 'to'] as $key) {
+      $value = $parameters[$key] ?? NULL;
+      if (is_string($value) && preg_match('/^[12]\d{3}$/', $value)) {
+        $years[$key] = (int) $value;
+      }
+    }
+    if (isset($years['from'], $years['to']) && $years['from'] > $years['to']) {
+      [$years['from'], $years['to']] = [$years['to'], $years['from']];
+    }
+    return $years;
+  }
+
+  /**
    * The labelled sections. External ones load after the page.
    *
    * A section with no results is left out, so visitors see what's there.
    */
-  private function sections(array $keys, string $mode_key, string $query, array $refines): array {
+  private function sections(array $keys, string $mode_key, string $query, array $refines, array $years): array {
     $sections = [];
     foreach ($keys as $key) {
       $definition = SearchSources::get($key);
@@ -207,14 +240,22 @@ class SearchController extends ControllerBase {
         $sections[] = [
           'key' => $key,
           'label' => $definition['label'],
-          'late_url' => Url::fromRoute('palefire_search.source', ['source' => $key], ['query' => ['q' => $query]])->toString(),
-          'full_url' => $this->address($mode_key, $query, [$key]),
+          'late_url' => Url::fromRoute('palefire_search.source', ['source' => $key], [
+            'query' => array_filter([
+              'q' => $query,
+              'mode' => $mode_key === 'all' ? '' : $mode_key,
+              'refine' => array_map(static fn(string $option): string => $key . ':' . $option, $refines[$key] ?? []),
+              ...(!empty($definition['year_filter']) ? $years : []),
+            ]),
+          ])->toString(),
+          'full_url' => $this->address($mode_key, $query, [$key], array_intersect_key($refines, [$key => TRUE]), 'relevance', !empty($definition['year_filter']) ? $years : []),
         ];
         continue;
       }
-      $results = $this->local->search([$key], $query, $refines, 0, self::SECTION_LIMIT);
+      $limit = $definition['section_limit'] ?? self::SECTION_LIMIT;
+      $results = $this->local->search([$key], $query, $refines, 0, $limit);
       if ($results['total'] > 0) {
-        $more = $results['total'] > self::SECTION_LIMIT ? $this->address($mode_key, $query, [$key]) : NULL;
+        $more = $results['total'] > $limit ? $this->address($mode_key, $query, [$key]) : NULL;
         $sections[] = [
           'key' => $key,
           'label' => $definition['label'],
@@ -231,10 +272,10 @@ class SearchController extends ControllerBase {
    * @return array
    *   The list's render array, and its total (NULL if it couldn't be reached).
    */
-  private function fullList(array $mode, array $selected, array $refines, string $query, int $page, string $sort): array {
+  private function fullList(array $mode, array $selected, array $refines, array $years, string $query, int $page, string $sort): array {
     $source = count($selected) === 1 ? SearchSources::get($selected[0]) : NULL;
     if ($source && $source['kind'] === 'external') {
-      $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort);
+      $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort, ['refine' => $refines[$selected[0]] ?? [], ...$years]);
       if ($results['failed']) {
         // Never keep a failure: the next visitor should get a fresh try.
         $this->killSwitch->trigger();
@@ -264,9 +305,15 @@ class SearchController extends ControllerBase {
       '#more_url' => $more_url,
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total'])]) : NULL,
     ];
-    if ($page !== NULL && $results['total'] > self::LIST_LIMIT) {
-      $this->pagerManager->createPager($results['total'], self::LIST_LIMIT);
+    // A service may find more than it will return. The total stays true and the
+    // pager stops where the service does, which the last page explains.
+    $reachable = $results['reachable'] ?? $results['total'];
+    if ($page !== NULL && $reachable > self::LIST_LIMIT) {
+      $this->pagerManager->createPager($reachable, self::LIST_LIMIT);
       $build['#pager'] = ['#type' => 'pager'];
+    }
+    if ($page !== NULL && $results['total'] > $reachable && $page >= ceil($reachable / self::LIST_LIMIT) - 1) {
+      $build['#limited'] = $reachable;
     }
     return $build;
   }
@@ -293,7 +340,7 @@ class SearchController extends ControllerBase {
    * add. Options with nothing to add are left out unless they're chosen.
    * Outside services have no count, since one would mean calling them.
    */
-  private function filters(array $mode, array $selected, array $chosen, array $refines, string $query): array {
+  private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query): array {
     $options = [];
     foreach ($mode['sources'] as $key) {
       $definition = SearchSources::get($key);
@@ -314,6 +361,10 @@ class SearchController extends ControllerBase {
       if (!isset($definition['refine_options'])) {
         continue;
       }
+      if (isset($definition['refine_groups'])) {
+        array_push($groups, ...$this->serviceFilters($key, $definition, $refines, $years));
+        continue;
+      }
       $options = [];
       foreach ($definition['refine_options'] as $value => $label) {
         $value = (string) $value;
@@ -331,16 +382,42 @@ class SearchController extends ControllerBase {
   }
 
   /**
+   * An outside service's filter groups. Its search has just run, so its counts
+   * cost nothing more. An option the service doesn't count has no number.
+   */
+  private function serviceFilters(string $key, array $definition, array $refines, array $years): array {
+    $counts = $this->external->discoveryCounts();
+    $groups = [];
+    foreach ($definition['refine_groups'] as $title => $values) {
+      $options = [];
+      foreach ($values as $value) {
+        $count = $counts[$value] ?? NULL;
+        $checked = in_array($value, $refines[$key] ?? [], TRUE);
+        if ($count !== 0 || $checked) {
+          $options[] = ['label' => $definition['refine_options'][$value], 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked];
+        }
+      }
+      if ($options) {
+        $groups[] = ['title' => $this->t($title), 'name' => 'refine[]', 'options' => $options];
+      }
+    }
+    if (!empty($definition['year_filter'])) {
+      $groups[] = ['title' => $this->t('Year published'), 'years' => $years];
+    }
+    return $groups;
+  }
+
+  /**
    * The chosen filters as links that remove them. Removing a source also
    * removes its refinements.
    */
-  private function chips(string $mode_key, string $query, array $chosen, array $refines, string $sort): array {
+  private function chips(string $mode_key, string $query, array $chosen, array $refines, array $years, string $sort): array {
     $chips = [];
     foreach ($chosen as $key) {
       $without = array_diff_key($refines, [$key => TRUE]);
       $chips[] = [
         'label' => SearchSources::get($key)['label'],
-        'url' => $this->address($mode_key, $query, array_values(array_diff($chosen, [$key])), $without, $sort),
+        'url' => $this->address($mode_key, $query, array_values(array_diff($chosen, [$key])), $without, $sort, !empty(SearchSources::get($key)['year_filter']) ? [] : $years),
       ];
     }
     foreach ($refines as $key => $options) {
@@ -349,9 +426,19 @@ class SearchController extends ControllerBase {
         $without[$key] = array_values(array_diff($options, [$option]));
         $chips[] = [
           'label' => SearchSources::get($key)['refine_options'][$option],
-          'url' => $this->address($mode_key, $query, $chosen, array_filter($without), $sort),
+          'url' => $this->address($mode_key, $query, $chosen, array_filter($without), $sort, $years),
         ];
       }
+    }
+    if ($years) {
+      $chips[] = [
+        'label' => match (TRUE) {
+          !isset($years['to']) => $this->t('From @year', ['@year' => $years['from']]),
+          !isset($years['from']) => $this->t('Up to @year', ['@year' => $years['to']]),
+          default => $years['from'] . '–' . $years['to'],
+        },
+        'url' => $this->address($mode_key, $query, $chosen, $refines, $sort),
+      ];
     }
     return $chips;
   }
@@ -374,7 +461,7 @@ class SearchController extends ControllerBase {
   /**
    * An address on this page. Empty values stay out of it.
    */
-  private function address(string $mode, string $query, array $sources = [], array $refines = [], string $sort = 'relevance'): string {
+  private function address(string $mode, string $query, array $sources = [], array $refines = [], string $sort = 'relevance', array $years = []): string {
     $refine = [];
     foreach ($refines as $key => $options) {
       foreach ($options as $option) {
@@ -387,6 +474,7 @@ class SearchController extends ControllerBase {
       'source' => $sources,
       'refine' => $refine,
       'sort' => $sort === 'relevance' ? '' : $sort,
+      ...$years,
     ], static fn($value): bool => $value !== '' && $value !== []);
     return Url::fromRoute('palefire_search.page', [], ['query' => $parameters])->toString();
   }

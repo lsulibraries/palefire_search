@@ -7,7 +7,8 @@
  * Variables:
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
- * - items: [title, url, external, summary, meta, source, image, image_url].
+ * - items: [title, url, external, summary, meta, source, type, full_text_url,
+ *   image, image_url]. type says what the record is, such as Book.
  *   title and summary are already escaped, with the searched words in <mark>.
  *   image is a local picture's render array. image_url is a cover from another
  *   host, sent no referrer so the search stays private. alt is empty on both:
@@ -15,6 +16,7 @@
  *   E-Textbook's [class, instructor, instructor_is_email, section, term].
  * - failed: the source couldn't be reached. Not the same as no results.
  * - simplified: what was searched instead, when the source can't use operators.
+ * - limited: how many can be paged to, on the last page when more were found.
  * - more_url, more_label: a link to go further.
  * - pager: a pager, or NULL.
  */
@@ -36,14 +38,20 @@
       {% for item in items %}
         <li class="pf-index-row{{ item.image or item.image_url ? ' pf-index-row--image' }}">
           <div class="pf-index-row__text">
+          {% if item.type or item.source %}
+            <p class="pf-index-row__type">{{ item.source ?: item.type }}</p>
+          {% endif %}
           <h3 class="pf-index-row__title">
             <a href="{{ item.url }}">{{ item.title }}{% if item.external %}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a>
           </h3>
-          {% if item.source or item.meta %}
-            <p class="pf-index-row__meta">{{ [item.source, item.meta]|filter(v => v)|join(' · ') }}</p>
+          {% if item.meta %}
+            <p class="pf-index-row__meta">{{ item.meta }}</p>
           {% endif %}
           {% if item.summary|render %}
             <p class="pf-index-row__summary">{{ item.summary }}</p>
+          {% endif %}
+          {% if item.full_text_url %}
+            <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
           {% endif %}
           {% if item.details %}
             <details class="pf-index-row__details">
@@ -70,8 +78,11 @@
         </li>
       {% endfor %}
     </ol>
+    {% if limited %}
+      <p class="pf-index-list__status">{{ 'Only the first @count results can be shown here. Use the filters to narrow them, or see them all on the service’s own site.'|t({'@count': limited|number_format}) }}</p>
+    {% endif %}
     {% if more_url %}
-      <p class="pf-index-list__more" data-no-swup><a href="{{ more_url }}">{{ more_label }}</a></p>
+      <p class="pf-index-list__more" data-no-swup><a class="pf-index-rule__link" href="{{ more_url }}">{{ more_label }}</a></p>
     {% endif %}
     {% if pager %}<div class="pf-index-list__pager" data-no-swup>{{ pager }}</div>{% endif %}
   {% endif %}
