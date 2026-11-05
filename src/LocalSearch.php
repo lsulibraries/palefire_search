@@ -318,7 +318,10 @@ class LocalSearch {
     $field = count($source_keys) === 1 ? (SearchSources::get($source_keys[0])['sort_field'] ?? NULL) : NULL;
     if ($field && $sort !== 'relevance') {
       $sorts = &$search->getSorts();
-      $sorts = [$field => $sort === 'oldest' ? QueryInterface::SORT_ASC : QueryInterface::SORT_DESC];
+      $sorts = [
+        $field => $sort === 'oldest' ? QueryInterface::SORT_ASC : QueryInterface::SORT_DESC,
+        'search_api_id' => QueryInterface::SORT_ASC,
+      ];
     }
   }
 
@@ -346,6 +349,9 @@ class LocalSearch {
     $search_keys = $keys;
     $search->setFulltextFields(array_values(array_diff($index->getFulltextFields(), SearchSources::PRIVATE_FIELDS)));
     $search->sort('search_api_relevance', QueryInterface::SORT_DESC);
+    // Results that tie otherwise come back in a different order each time, so
+    // one page repeats rows from another and some are never shown.
+    $search->sort('search_api_id', QueryInterface::SORT_ASC);
 
     $sources = $search->createConditionGroup('OR');
     foreach ($source_keys as $key) {
