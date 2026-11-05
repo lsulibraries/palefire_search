@@ -155,13 +155,21 @@ class CatalogSearch {
       'url' => ResultText::url($url),
       'summary' => '',
       'meta' => implode(' · ', array_filter([
-        $author,
-        ResultText::clean($fields['Publication Dates'] ?? $fields['Title Inclusive Dates'] ?? ''),
+        $this->withoutFinalPeriod($author),
+        $this->withoutFinalPeriod(ResultText::clean($fields['Publication Dates'] ?? $fields['Title Inclusive Dates'] ?? '')),
         ResultText::clean($fields['Call Number'] ?? ''),
       ])),
       'type' => ResultText::clean($fields['Format'] ?? ''),
       'full_text_url' => $this->fullText($fields['Electronic Access'] ?? ''),
     ];
+  }
+
+  /**
+   * Text without a catalog record's closing period, keeping one that belongs to
+   * an initial or a short form: Smith, J. and 1934 Sept. stay as they are.
+   */
+  private function withoutFinalPeriod(string $text): string {
+    return preg_replace('/(?<!\b[A-Z])(?<!\b(?:Jr|Sr))(?<!\b(?:Inc|Ltd|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Oct|Nov|Dec))(?<!Sept)\.$/', '', $text) ?? $text;
   }
 
   /**
