@@ -89,13 +89,13 @@ class DiscoverySearch {
     $this->counts = [];
     $page = min($page, (int) floor((self::MAX_START - 1) / $limit));
 
-    try {
-      $response = $this->client->request('GET', $this->address($terms, $filters, $page, $limit, $sort), ['timeout' => 25]);
-      $json = json_decode((string) $response->getBody(), TRUE);
-    }
-    catch (\Throwable $error) {
-      $this->loggerFactory->get('palefire_search')->error('Discovery search failed: @message', ['@message' => $error->getMessage()]);
-      return ['total' => NULL, 'failed' => TRUE, 'items' => []];
+    $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort));
+
+    // The service only reaches so far past what it has already read for a
+    // search. Reading as far as it allows opens the page asked for.
+    if (preg_match('/Max start request number is\s*:\s*(\d+)/', (string) ($json['DetailedErrorDescription'] ?? ''), $match)) {
+      $this->fetch($this->address($terms, $filters, intdiv((int) $match[1] - 1, $limit), $limit, $sort));
+      $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort));
     }
 
     $total = $json['SearchResult']['Statistics']['TotalHits'] ?? NULL;
@@ -111,6 +111,21 @@ class DiscoverySearch {
       'failed' => FALSE,
       'items' => array_values(array_filter(array_map($this->record(...), $json['SearchResult']['Data']['Records'] ?? []))),
     ];
+  }
+
+  /**
+   * A response from the proxy, or NULL if it didn't answer. The service's own
+   * errors come back as JSON with an error status, so they're read, not thrown.
+   */
+  private function fetch(string $url): ?array {
+    try {
+      $response = $this->client->request('GET', $url, ['timeout' => 25, 'http_errors' => FALSE]);
+      return json_decode((string) $response->getBody(), TRUE);
+    }
+    catch (\Throwable $error) {
+      $this->loggerFactory->get('palefire_search')->error('Discovery search failed: @message', ['@message' => $error->getMessage()]);
+      return NULL;
+    }
   }
 
   /**
@@ -188,7 +203,8 @@ class DiscoverySearch {
     foreach ($record['Items'] ?? [] as $detail) {
       $details[$detail['Name'] ?? ''][] = $detail['Data'] ?? '';
     }
-    $title = $details['Title'][0] ?? '';
+    // Some records, such as NewsBank's, have no items, only their bibliography.
+    $title = $details['Title'][0] ?? (string) ($record['RecordInfo']['BibRecord']['BibEntity']['Titles'][0]['TitleFull'] ?? '');
     if ($title === '') {
       return NULL;
     }
