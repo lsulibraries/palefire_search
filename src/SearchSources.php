@@ -90,7 +90,8 @@ final class SearchSources {
   public static function all(): array {
     return [
       'articles' => [
-        'label' => 'Articles & Books',
+        'label' => 'Discovery',
+        'about' => 'Articles, books, e-books and more from across the Libraries’ subscriptions and collections, searched at once. A good place to start.',
         'kind' => 'external',
         'adapter' => 'discovery',
         // It leads the page, and it's the widest source, so it shows the most.
@@ -128,6 +129,7 @@ final class SearchSources {
       ],
       'guides' => [
         'label' => 'Research Guides',
+        'about' => 'Librarians’ pages of recommended sources and tips for a subject or a course.',
         'kind' => 'external',
         'view' => 'bento_libguides_fulltext',
         'display' => 'guidestext',
@@ -143,16 +145,57 @@ final class SearchSources {
       ],
       'catalog' => [
         'label' => 'Catalog',
+        'about' => 'What the Libraries hold: print and online books, journals, microforms, maps, music, films and archives, with call numbers and where to find them.',
         'kind' => 'external',
         'adapter' => 'catalog',
         'section_limit' => 5,
         // Its full list is on this page: go there, not away.
         'lists_here' => TRUE,
+        // The service takes one choice to a filter.
+        'refine_single' => TRUE,
+        'refine_options' => [
+          'type_book' => 'Books',
+          'type_archive' => 'Archives and manuscripts',
+          'type_online' => 'Online resources',
+          'type_microform' => 'Microforms',
+          'type_av' => 'Audio-visual',
+          'type_journal' => 'Print journals',
+          'type_unbound' => 'Print journals, unbound',
+          'type_score' => 'Music scores',
+          'type_map' => 'Maps',
+          'type_newspaper' => 'Newspapers',
+          'type_graphic' => 'Posters and pictures',
+          'library_main' => 'LSU Library',
+          'library_special' => 'Special Collections',
+          'library_documents' => 'Government Documents and Microforms',
+          'library_music' => 'Carter Music Resources Center',
+          'library_maps' => 'Cartographic Information Center',
+          'library_veterinary' => 'Veterinary Medicine Library',
+          'language_english' => 'English',
+          'language_french' => 'French',
+          'language_german' => 'German',
+          'language_spanish' => 'Spanish',
+          'language_latin' => 'Latin',
+          'language_italian' => 'Italian',
+          'language_dutch' => 'Dutch',
+          'language_portuguese' => 'Portuguese',
+          'language_russian' => 'Russian',
+          'language_chinese' => 'Chinese',
+          'language_japanese' => 'Japanese',
+          'language_arabic' => 'Arabic',
+        ],
+        'refine_groups' => [
+          'Type' => ['type_book', 'type_archive', 'type_online', 'type_microform', 'type_av', 'type_journal', 'type_unbound', 'type_score', 'type_map', 'type_newspaper', 'type_graphic'],
+          'Library' => ['library_main', 'library_special', 'library_documents', 'library_music', 'library_maps', 'library_veterinary'],
+          'Language' => ['language_english', 'language_french', 'language_german', 'language_spanish', 'language_latin', 'language_italian', 'language_dutch', 'language_portuguese', 'language_russian', 'language_chinese', 'language_japanese', 'language_arabic'],
+        ],
+        'year_filter' => TRUE,
         'more_label' => 'Search the Catalog',
         'more_url' => 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/results?user_id=&qu=@q&rt=Keyword&qf=ALL',
       ],
       'databases' => [
         'label' => 'Databases',
+        'about' => 'Collections the Libraries subscribe to, for searching one subject or kind of source in depth.',
         'kind' => 'local',
         'types' => ['tile'],
         'categories' => [66],
@@ -161,11 +204,13 @@ final class SearchSources {
       ],
       'etextbooks' => [
         'label' => 'E-Textbooks',
+        'about' => 'Online books the Libraries provide for LSU courses, with the class, section and instructor that use each one.',
         'kind' => 'local',
         'types' => ['e_books'],
       ],
       'archive' => [
         'label' => 'Archive Records',
+        'about' => 'Descriptions of Special Collections materials, such as finding aids, oral histories, manuscripts and University Archives records.',
         'kind' => 'local',
         'types' => ['archive_record'],
         'refine_field' => 'field_record_type',
@@ -183,6 +228,7 @@ final class SearchSources {
       ],
       'pages' => [
         'label' => 'Pages',
+        'about' => 'Pages on this website, such as services, places and policies.',
         'images' => TRUE,
         'kind' => 'local',
         // modular_page isn't in the index yet. Listing it here means Palefire
@@ -201,6 +247,7 @@ final class SearchSources {
       ],
       'faq' => [
         'label' => 'Questions & Answers',
+        'about' => 'Answers to questions people often ask the Libraries.',
         // The answer, ahead of a tile's usual summary.
         'summary_fields' => ['field_tile_linked_text', 'field_tile_long_summary', 'field_tile_text'],
         'kind' => 'local',
@@ -209,6 +256,7 @@ final class SearchSources {
       ],
       'gear' => [
         'label' => 'Gear',
+        'about' => 'Equipment you can borrow from the Libraries.',
         'images' => TRUE,
         'kind' => 'local',
         'types' => ['tile'],
@@ -216,6 +264,7 @@ final class SearchSources {
       ],
       'news' => [
         'label' => 'News and Notes',
+        'about' => 'Stories and announcements from the Libraries.',
         'images' => TRUE,
         'kind' => 'local',
         'types' => ['article'],
@@ -239,6 +288,7 @@ final class SearchSources {
       ],
       'news_special' => [
         'label' => 'News and Notes',
+        'about' => 'Stories and announcements from Special Collections.',
         'images' => TRUE,
         'kind' => 'local',
         'types' => ['article'],
@@ -248,6 +298,7 @@ final class SearchSources {
       ],
       'staff' => [
         'label' => 'Staff',
+        'about' => 'The people who work at the Libraries, and how to reach them.',
         'images' => TRUE,
         'kind' => 'local',
         'types' => ['staff'],

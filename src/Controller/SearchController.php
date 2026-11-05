@@ -101,7 +101,8 @@ class SearchController extends ControllerBase {
       '#action' => Url::fromRoute('palefire_search.page')->toString(),
       '#modes' => $this->modeLinks($modes, $mode_key, $query),
       '#attached' => [
-        'library' => ['palefire/index-search'],
+        // Glossary: the source definitions use its cards.
+        'library' => ['palefire/index-search', 'palefire/glossary'],
         // Results pages are endless variations of one page: keep them out of
         // search engines.
         'html_head' => [
@@ -209,7 +210,27 @@ class SearchController extends ControllerBase {
         $refines[$key][] = $option;
       }
     }
+    foreach ($refines as $key => $options) {
+      $definition = SearchSources::get($key);
+      if (!empty($definition['refine_single'])) {
+        $refines[$key] = $this->oneToAGroup($options, $definition['refine_groups']);
+      }
+    }
     return [$chosen, array_map('array_unique', $refines)];
+  }
+
+  /**
+   * The last choice in each filter, for a service that takes only one.
+   */
+  private function oneToAGroup(array $options, array $groups): array {
+    $kept = [];
+    foreach ($groups as $values) {
+      $chosen = array_values(array_intersect($options, $values));
+      if ($chosen) {
+        $kept[] = end($chosen);
+      }
+    }
+    return $kept;
   }
 
   /**
@@ -242,6 +263,7 @@ class SearchController extends ControllerBase {
         $sections[] = [
           'key' => $key,
           'label' => $definition['label'],
+          'about' => $definition['about'] ?? NULL,
           'via' => $this->via($definition, $query),
           'late_url' => Url::fromRoute('palefire_search.source', ['source' => $key], [
             'query' => array_filter([
@@ -262,6 +284,7 @@ class SearchController extends ControllerBase {
         $sections[] = [
           'key' => $key,
           'label' => $definition['label'],
+          'about' => $definition['about'] ?? NULL,
           'list' => $this->listBuild($definition['label'], $results, $more, 'Show all @total'),
         ];
       }
@@ -279,7 +302,7 @@ class SearchController extends ControllerBase {
   private function fullList(array $mode, array $selected, array $refines, array $years, string $query, int $page, string $sort): array {
     $source = count($selected) === 1 ? SearchSources::get($selected[0]) : NULL;
     if ($source && $source['kind'] === 'external') {
-      $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort, ['refine' => $refines[$selected[0]] ?? [], ...$years]);
+      $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort, ['refine' => $refines[$selected[0]] ?? [], 'full' => TRUE, ...$years]);
       if ($results['failed']) {
         // Never keep a failure: the next visitor should get a fresh try.
         $this->killSwitch->trigger();
@@ -349,8 +372,12 @@ class SearchController extends ControllerBase {
    */
   private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query): array {
     $options = [];
+    $about = [];
     foreach ($mode['sources'] as $key) {
       $definition = SearchSources::get($key);
+      if (isset($definition['about'])) {
+        $about[] = ['label' => $definition['label'], 'text' => $definition['about']];
+      }
       $count = $definition['kind'] === 'local' ? $this->local->count([$key], $query) : NULL;
       // Ticked only if chosen. A record type limits results to its source without
       // ticking it, or the form would send that back as a choice of its own.
@@ -359,7 +386,7 @@ class SearchController extends ControllerBase {
         $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked];
       }
     }
-    $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options]];
+    $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options, 'about' => $about]];
 
     // A source's own filter shows once that source is chosen, or always where
     // the mode leads with it. Each option is a query, so not all at once.
@@ -393,7 +420,8 @@ class SearchController extends ControllerBase {
    * cost nothing more. An option the service doesn't count has no number.
    */
   private function serviceFilters(string $key, array $definition, array $refines, array $years): array {
-    $counts = $this->external->discoveryCounts();
+    $counts = $this->external->counts($definition);
+    $single = !empty($definition['refine_single']);
     $groups = [];
     foreach ($definition['refine_groups'] as $title => $values) {
       $options = [];
@@ -404,7 +432,18 @@ class SearchController extends ControllerBase {
           $options[] = ['label' => $definition['refine_options'][$value], 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked];
         }
       }
-      if ($options) {
+      if ($options && $single) {
+        // Round buttons, which need a way back to no choice and a name of their
+        // own in each filter. The empty value is ignored when it's read.
+        array_unshift($options, [
+          'label' => $this->t('Any'),
+          'value' => '',
+          'count' => NULL,
+          'checked' => !array_intersect($values, $refines[$key] ?? []),
+        ]);
+        $groups[] = ['title' => $this->t($title), 'name' => 'refine[' . $key . '_' . count($groups) . ']', 'options' => $options, 'single' => TRUE];
+      }
+      elseif ($options) {
         $groups[] = ['title' => $this->t($title), 'name' => 'refine[]', 'options' => $options];
       }
     }

@@ -38,8 +38,8 @@ class ExternalSearch {
    * @param string $sort
    *   The sort's name.
    * @param array $filters
-   *   refine: the source's chosen filters; from, to: years. Only Discovery has
-   *   any.
+   *   refine: the source's chosen filters; from, to: years; full: this is the
+   *   source's own list, so its total and filter counts are worth reading.
    *
    * @return array
    *   total, reachable (when fewer can be paged to), capped (when there may be
@@ -60,7 +60,7 @@ class ExternalSearch {
 
     $results = match ($source['adapter']) {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
-      'catalog' => $this->catalog->search($terms, $page, $limit),
+      'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       default => $this->guidesResults($source, $terms, $page, $limit),
     };
 
@@ -80,10 +80,14 @@ class ExternalSearch {
   }
 
   /**
-   * Type counts from the latest Discovery search, by filter name.
+   * Filter counts from a service's latest search, by filter name.
    */
-  public function discoveryCounts(): array {
-    return $this->discovery->counts();
+  public function counts(array $source): array {
+    return match ($source['adapter']) {
+      'discovery' => $this->discovery->counts(),
+      'catalog' => $this->catalog->counts(),
+      default => [],
+    };
   }
 
   /**

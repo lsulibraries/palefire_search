@@ -12,7 +12,9 @@
  * - query, mode: the current search.
  * - action: the forms' address.
  * - modes: [label, url, current], the tabs.
- * - filters: [title, name, options: [label, value, count, checked]]. count is
+ * - filters: [title, name, single, about, options: [label, value, count, checked]].
+ *   single: one choice, as round buttons. about: [label, text], what each source
+ *   is, opened from the group's title. count is
  *   NULL for a source that's only counted by searching it. A group with years
  *   instead of options is a year range: [from, to].
  * - chips: [label, url], the chosen filters as links that remove them.
@@ -31,7 +33,7 @@
 #}
 {% import _self as index %}
 {% macro via(via) %}
-  <p class="pf-index-via">{{ 'Uses'|t }} <a href="{{ via.url }}">{{ via.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% for other in via.also %}<span aria-hidden="true"> · </span>{{ 'Also try the'|t }} <a href="{{ other.url }}">{{ other.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% endfor %}</p>
+  <p class="pf-index-via">{{ 'Go to'|t }} <a href="{{ via.url }}">{{ via.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% for other in via.also %}<span aria-hidden="true"> · </span>{{ 'Also try the'|t }} <a href="{{ other.url }}">{{ other.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% endfor %}</p>
 {% endmacro %}
 {# data-no-swup on whatever changes the search: js/index-search.js swaps the
    results for those, and Swup would prefetch them on hover, running a whole
@@ -85,7 +87,21 @@
           </div>
           {% for group in filters %}
             <fieldset class="pf-index__group">
-              <legend class="pf-index__group-title">{{ group.title }}</legend>
+              <legend class="pf-index__group-title">
+                <span>{{ group.title }}</span>
+                {% if group.about %}<button class="pf-index__about-open" type="button" popovertarget="pf-index-about" style="anchor-name:--pf-index-about">{{ 'What are these?'|t }}</button>{% endif %}
+              </legend>
+              {% if group.about %}
+                <div class="pf-term__card pf-index__about" id="pf-index-about" popover style="position-anchor:--pf-index-about">
+                  <p class="pf-term__name">{{ 'What each source searches'|t }}</p>
+                  <dl>
+                    {% for entry in group.about %}
+                      <dt>{{ entry.label }}</dt>
+                      <dd>{{ entry.text }}</dd>
+                    {% endfor %}
+                  </dl>
+                </div>
+              {% endif %}
               {% if group.years is defined %}
                 <div class="pf-index__years">
                   <div>
@@ -100,7 +116,7 @@
               {% endif %}
               {% for option in group.options %}
                 <label class="pf-index__option">
-                  <input type="checkbox" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
+                  <input type="{{ group.single ? 'radio' : 'checkbox' }}" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
                   <span class="pf-index__option-label">{{ option.label }}</span>
                   {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}</span>{% endif %}
                 </label>
@@ -147,7 +163,7 @@
 
         {% for section in sections %}
           <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" aria-labelledby="pf-index-{{ section.key }}">
-            <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2>{% if section.via %}{{ index.via(section.via) }}{% endif %}</div>
+            <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{% if section.about %}<button class="pf-term" type="button" popovertarget="pf-index-about-{{ section.key }}" style="anchor-name:--pf-index-about-{{ section.key }}">{{ section.label }}</button>{% else %}{{ section.label }}{% endif %}</h2>{% if section.about %}<div class="pf-term__card" id="pf-index-about-{{ section.key }}" popover style="position-anchor:--pf-index-about-{{ section.key }}"><p class="pf-term__name">{{ section.label }}</p><p class="pf-term__definition">{{ section.about }}</p></div>{% endif %}{% if section.via %}{{ index.via(section.via) }}{% endif %}</div>
             {% if section.late_url %}
               <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">
                 <p class="pf-index-list__status"><a href="{{ section.full_url }}" data-no-swup>{{ 'Show results from @label'|t({'@label': section.label}) }}</a></p>

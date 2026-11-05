@@ -5,7 +5,7 @@ The Index: the search page at `/v2/search`, in the Palefire theme.
 - **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
   E-Textbooks, Archive Records): direct Search API queries on the
   `bento_search` index, matching all words.
-- **External sources** (Articles & Books, Research Guides): the existing Views,
+- **External sources** (Discovery, Catalog, Research Guides): the existing Views,
   run for their data. Their sections load after the page.
 - **Links only** (Scholarly Repository, Catalog).
 
