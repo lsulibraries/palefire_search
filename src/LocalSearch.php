@@ -198,7 +198,7 @@ class LocalSearch {
     [$title, $summary, $meta, $url] = match ($node->bundle()) {
       'tile' => [
         $this->text($node, 'field_title') ?: $node->label(),
-        $this->text($node, 'field_tile_long_summary') ?: $this->text($node, 'field_tile_text'),
+        $this->tileSummary($node, $source_keys),
         '',
         $this->linkField($node, ['field_tile_link']),
       ],
@@ -246,6 +246,21 @@ class LocalSearch {
       'image_url' => $node->bundle() === 'e_books' ? ResultText::imageUrl($this->text($node, 'field_book_image_url')) : NULL,
       'details' => $node->bundle() === 'e_books' ? $this->bookDetails($node) : NULL,
     ];
+  }
+
+  /**
+   * A tile's summary: the first of its source's fields with real content.
+   */
+  private function tileSummary(NodeInterface $node, array $source_keys): string {
+    $fields = $this->sourceOf($node, $source_keys)['summary_fields']
+      ?? ['field_tile_long_summary', 'field_tile_text', 'field_tile_linked_text'];
+    foreach ($fields as $field) {
+      $text = $this->text($node, $field);
+      if (ResultText::clean($text) !== '' && !ResultText::isPlaceholder(ResultText::clean($text))) {
+        return $text;
+      }
+    }
+    return '';
   }
 
   /**

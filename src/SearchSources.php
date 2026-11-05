@@ -172,6 +172,8 @@ final class SearchSources {
       ],
       'faq' => [
         'label' => 'Questions & Answers',
+        // The answer, ahead of a tile's usual summary.
+        'summary_fields' => ['field_tile_linked_text', 'field_tile_long_summary', 'field_tile_text'],
         'kind' => 'local',
         'types' => ['tile'],
         'categories' => [541],

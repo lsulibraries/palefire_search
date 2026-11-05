@@ -17,13 +17,27 @@ final class ResultText {
   private const SUMMARY_LENGTH = 240;
 
   /**
+   * A form's starter text, saved by editors who left it in place. Not content.
+   */
+  private const PLACEHOLDERS = ['Enter short description here.'];
+
+  /**
    * Plain text from HTML, or from a service's encoded HTML.
    */
   public static function clean(?string $text): string {
     $text = html_entity_decode((string) $text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     // Encoded twice by some services, so a tag can only show up after decoding.
-    $text = strip_tags(html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // A space where a block ends, or list items would run together as one word.
+    $text = strip_tags(preg_replace('#</?(p|div|li|ul|ol|br|h[1-6]|tr|td|blockquote)\b#i', ' $0', $text) ?? $text);
     return trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+  }
+
+  /**
+   * Whether text is a form's starter text rather than content.
+   */
+  public static function isPlaceholder(string $text): bool {
+    return in_array(trim($text), self::PLACEHOLDERS, TRUE);
   }
 
   /**
@@ -31,6 +45,9 @@ final class ResultText {
    */
   public static function summary(?string $text): string {
     $text = self::clean($text);
+    if (self::isPlaceholder($text)) {
+      return '';
+    }
     if (mb_strlen($text) <= self::SUMMARY_LENGTH) {
       return $text;
     }

@@ -95,7 +95,7 @@
         {% if chips or total is not null or sorts %}
           <div class="pf-index__toolbar">
             {% if total is not null %}
-              <p class="pf-index__total" data-pf-index-count>{{ '@total results'|t({'@total': total|number_format}) }}</p>
+              <p class="pf-index__total" data-pf-index-count>{% if total == 1 %}{{ '1 result'|t }}{% else %}{{ '@total results'|t({'@total': total|number_format}) }}{% endif %}</p>
             {% endif %}
             {% if sorts %}
               <div class="pf-index__sort">
