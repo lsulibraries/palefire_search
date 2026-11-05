@@ -278,13 +278,15 @@ class LocalSearch {
   }
 
   /**
-   * An E-Textbook's term as people say it: LSUAM_FALL_2026 is Fall 2026.
+   * An E-Textbook's term as people say it: LSUAM_FALL_2026 is Fall 2026, and
+   * LSUAM_ONLINE_FALL_2_2026 is Fall 2 2026 (Online).
    */
   private function term(NodeInterface $node): string {
     $term = $this->text($node, 'field_term');
-    return preg_match('/_(FALL|SPRING|SUMMER|WINTER)[A-Z0-9]*_(\d{4})$/', $term, $match)
-      ? ucfirst(strtolower($match[1])) . ' ' . $match[2]
-      : ResultText::clean($term);
+    if (!preg_match('/_(ONLINE_)?(FALL|SPRING|SUMMER|WINTER)(?:_?(\d))?_(\d{4})$/', $term, $match)) {
+      return ResultText::clean($term);
+    }
+    return ucfirst(strtolower($match[2])) . ($match[3] !== '' ? ' ' . $match[3] : '') . ' ' . $match[4] . ($match[1] !== '' ? ' (Online)' : '');
   }
 
   /**
