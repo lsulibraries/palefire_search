@@ -90,7 +90,7 @@
       {% endfor %}
     </ol>
     {% if limited %}
-      <p class="pf-index-list__status">{{ 'Only the first @count results can be shown here. Use the filters to narrow them, or see them all on the service’s own site.'|t({'@count': limited|number_format}) }}</p>
+      <p class="pf-index-list__status">{{ 'Only the first @count results can be shown here. Narrow the search, or see them all on the service’s own site.'|t({'@count': limited|number_format}) }}</p>
     {% endif %}
     {% if more_url %}
       <p class="pf-index-list__more" data-no-swup><a class="pf-index-rule__link" href="{{ more_url }}">{{ more_label }}</a></p>

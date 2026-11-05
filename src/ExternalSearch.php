@@ -8,7 +8,8 @@ use Drupal\views\Views;
 /**
  * Searches outside services.
  *
- * Discovery has its own class, for the filters its View can't pass. Research
+ * Discovery has its own class, for the filters its View can't pass, and the
+ * Catalog has one for its feed. Research
  * Guides runs its View for the data and ignores the markup. The connector
  * modules (eds, libguides) keep the credentials and the calls.
  */
@@ -16,6 +17,7 @@ class ExternalSearch {
 
   public function __construct(
     private readonly DiscoverySearch $discovery,
+    private readonly CatalogSearch $catalog,
   ) {}
 
   /**
@@ -40,26 +42,30 @@ class ExternalSearch {
    *   any.
    *
    * @return array
-   *   total, reachable (when fewer can be paged to), failed, and items: [title,
+   *   total, reachable (when fewer can be paged to), capped (when there may be
+   *   more than the total), failed, and items: [title,
    *   url, external, summary, meta, source, type, full_text_url, image_url].
    */
   public function search(array $source, string $query, int $page, int $limit, string $sort = 'relevance', array $filters = []): array {
     // Each service reads operators its own way.
     $terms = match ($source['adapter']) {
       'discovery' => SearchTerms::forDiscovery($query),
-      'guides' => SearchTerms::forGuides($query),
+      // Words and phrases only: the Catalog's feed reads AND and NOT as words.
+      'guides', 'catalog' => SearchTerms::forGuides($query),
       default => $query,
     };
     if ($terms === '') {
       return ['total' => 0, 'failed' => FALSE, 'items' => []];
     }
 
-    $results = $source['adapter'] === 'discovery'
-      ? $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance')
-      : $this->guidesResults($source, $terms, $page, $limit);
+    $results = match ($source['adapter']) {
+      'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
+      'catalog' => $this->catalog->search($terms, $page, $limit),
+      default => $this->guidesResults($source, $terms, $page, $limit),
+    };
 
-    // Research Guides can't honor operators, and the page says so.
-    $results['simplified'] = $source['adapter'] === 'guides' && SearchTerms::hasOperators($query) ? $terms : NULL;
+    // Some services can't honor operators, and the page says so.
+    $results['simplified'] = in_array($source['adapter'], ['guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
 
     $words = SearchSources::indexableWords($query);
     foreach ($results['items'] as $index => $item) {

@@ -19,6 +19,7 @@
  * - clear_url: the search with no filters.
  * - selected_count: how many filters are chosen.
  * - total: the list's total, when there's one list.
+ * - capped: there may be more than the total, which is as far as a service reads.
  * - sort, sorts: the current sort and those on offer (value => label).
  * - links: [label, url], searches elsewhere.
  * - via: the service behind a chosen source: [label, url, also: [label, url]].
@@ -114,7 +115,7 @@
         {% if chips or total is not null or sorts %}
           <div class="pf-index__toolbar">
             {% if total is not null %}
-              <p class="pf-index__total" data-pf-index-count>{% if total == 1 %}{{ '1 result'|t }}{% else %}{{ '@total results'|t({'@total': total|number_format}) }}{% endif %}</p>
+              <p class="pf-index__total" data-pf-index-count>{% if capped %}{{ '@total+ results'|t({'@total': total|number_format}) }}{% elseif total == 1 %}{{ '1 result'|t }}{% else %}{{ '@total results'|t({'@total': total|number_format}) }}{% endif %}</p>
             {% endif %}
             {% if sorts %}
               <div class="pf-index__sort">

@@ -20,6 +20,7 @@ function palefire_search_theme(): array {
         'clear_url' => NULL,
         'selected_count' => 0,
         'total' => NULL,
+        'capped' => FALSE,
         'sort' => NULL,
         'sorts' => [],
         'links' => [],

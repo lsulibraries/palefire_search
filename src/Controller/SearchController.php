@@ -141,7 +141,7 @@ class SearchController extends ControllerBase {
 
     // The results first: they record counts the filters can then reuse.
     if (count($selected) === 1 || $mode['layout'] === 'merged') {
-      [$build['#list'], $total] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
+      [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
       $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
       $build['#total'] = $total;
       if (count($sorts) > 1) {
@@ -273,7 +273,8 @@ class SearchController extends ControllerBase {
    * The one list: a chosen source, or a merged mode's sources.
    *
    * @return array
-   *   The list's render array, and its total (NULL if it couldn't be reached).
+   *   The list's render array, its total (NULL if it couldn't be reached), and
+   *   whether there may be more than that total.
    */
   private function fullList(array $mode, array $selected, array $refines, array $years, string $query, int $page, string $sort): array {
     $source = count($selected) === 1 ? SearchSources::get($selected[0]) : NULL;
@@ -285,13 +286,13 @@ class SearchController extends ControllerBase {
       }
       $list = $this->listBuild($source['label'], $results, SearchSources::moreUrl($source, $query), $source['more_label'] ?? NULL, $page);
       $list['#cache'] = ['max-age' => $results['failed'] ? 0 : self::EXTERNAL_MAX_AGE];
-      return [$list, $results['total']];
+      return [$list, $results['total'], !empty($results['capped'])];
     }
     $keys = $selected ?: array_values(array_filter($mode['sources'], static fn(string $key): bool => SearchSources::get($key)['kind'] === 'local'));
     $results = $this->local->search($keys, $query, $refines, $page, self::LIST_LIMIT, $sort);
     $label = $source['label'] ?? (string) $this->t('Results');
     $more = $source ? SearchSources::moreUrl($source, $query) : NULL;
-    return [$this->listBuild($label, $results, $more, $source['more_label'] ?? NULL, $page), $results['total']];
+    return [$this->listBuild($label, $results, $more, $source['more_label'] ?? NULL, $page), $results['total'], FALSE];
   }
 
   /**
@@ -309,7 +310,7 @@ class SearchController extends ControllerBase {
       '#failed' => $results['failed'] ?? FALSE,
       '#simplified' => $results['simplified'] ?? NULL,
       '#more_url' => $more_url,
-      '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total'])]) : NULL,
+      '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
     // A service may find more than it will return. The total stays true and the
     // pager stops where the service does, which the last page explains.
@@ -318,7 +319,7 @@ class SearchController extends ControllerBase {
       $this->pagerManager->createPager($reachable, self::LIST_LIMIT);
       $build['#pager'] = ['#type' => 'pager'];
     }
-    if ($page !== NULL && $results['total'] > $reachable && $page >= ceil($reachable / self::LIST_LIMIT) - 1) {
+    if ($page !== NULL && ($results['total'] > $reachable || !empty($results['capped'])) && $page >= ceil($reachable / self::LIST_LIMIT) - 1) {
       $build['#limited'] = $reachable;
     }
     return $build;

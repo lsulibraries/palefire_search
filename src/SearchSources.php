@@ -58,14 +58,14 @@ final class SearchSources {
       'all' => [
         'label' => 'All',
         'layout' => 'sections',
-        'sources' => ['articles', 'databases', 'guides', 'archive', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
-        'links' => ['repository', 'catalog'],
+        'sources' => ['articles', 'catalog', 'databases', 'guides', 'archive', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
+        'links' => ['repository'],
       ],
       'research' => [
         'label' => 'Research',
         'layout' => 'sections',
-        'sources' => ['articles', 'databases', 'etextbooks', 'guides', 'archive'],
-        'links' => ['repository', 'catalog'],
+        'sources' => ['articles', 'catalog', 'databases', 'etextbooks', 'guides', 'archive'],
+        'links' => ['repository'],
       ],
       'website' => [
         'label' => 'Website',
@@ -143,7 +143,11 @@ final class SearchSources {
       ],
       'catalog' => [
         'label' => 'Catalog',
-        'kind' => 'link',
+        'kind' => 'external',
+        'adapter' => 'catalog',
+        'section_limit' => 5,
+        // Its full list is on this page: go there, not away.
+        'lists_here' => TRUE,
         'more_label' => 'Search the Catalog',
         'more_url' => 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/results?user_id=&qu=@q&rt=Keyword&qf=ALL',
       ],
