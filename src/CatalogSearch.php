@@ -102,8 +102,14 @@ class CatalogSearch {
     }
 
     $status = $response->getStatusCode();
+    // The feed is sent as a web page, so its host adds a script after the end,
+    // which a strict reader rejects. The feed itself ends at its closing tag.
+    $body = (string) $response->getBody();
+    $end = strrpos($body, '</feed>');
+    $body = $end === FALSE ? $body : substr($body, 0, $end + strlen('</feed>'));
+
     $previous = libxml_use_internal_errors(TRUE);
-    $feed = $status === 200 ? simplexml_load_string((string) $response->getBody(), \SimpleXMLElement::class, LIBXML_NONET) : FALSE;
+    $feed = $status === 200 ? simplexml_load_string($body, \SimpleXMLElement::class, LIBXML_NONET) : FALSE;
     libxml_clear_errors();
     libxml_use_internal_errors($previous);
     if ($feed === FALSE) {
