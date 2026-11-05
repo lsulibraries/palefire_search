@@ -142,6 +142,7 @@ class SearchController extends ControllerBase {
     // The results first: they record counts the filters can then reuse.
     if (count($selected) === 1 || $mode['layout'] === 'merged') {
       [$build['#list'], $total] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
+      $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
       $build['#total'] = $total;
       if (count($sorts) > 1) {
         $build['#sort'] = $sort;
@@ -241,6 +242,7 @@ class SearchController extends ControllerBase {
         $sections[] = [
           'key' => $key,
           'label' => $definition['label'],
+          'via' => $this->via($definition, $query),
           'late_url' => Url::fromRoute('palefire_search.source', ['source' => $key], [
             'query' => array_filter([
               'q' => $query,
@@ -445,6 +447,23 @@ class SearchController extends ControllerBase {
       ];
     }
     return $chips;
+  }
+
+  /**
+   * The service behind a source and others to try, each with this search, or NULL.
+   */
+  private function via(array $definition, string $query): ?array {
+    if (empty($definition['via'])) {
+      return NULL;
+    }
+    return [
+      'label' => $definition['via'],
+      'url' => SearchSources::moreUrl($definition, $query),
+      'also' => array_map(static function (string $key) use ($query): array {
+        $other = SearchSources::get($key);
+        return ['label' => $other['label'], 'url' => SearchSources::moreUrl($other, $query)];
+      }, $definition['also'] ?? []),
+    ];
   }
 
   /**

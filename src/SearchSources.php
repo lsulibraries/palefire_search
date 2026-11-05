@@ -120,6 +120,9 @@ final class SearchSources {
           'Type' => ['journals', 'books', 'ebooks', 'magazines', 'news', 'reviews', 'trade', 'reports', 'biographies', 'primary_sources', 'dissertations', 'conferences'],
         ],
         'year_filter' => TRUE,
+        // Named beside the source's heading, with its own site and others to try.
+        'via' => 'Discovery',
+        'also' => ['catalog'],
         'more_label' => 'See all in Discovery',
         'more_url' => 'https://libezp.lib.lsu.edu/login?url=https://search.ebscohost.com/login.aspx?direct=true&site=eds-live&scope=site&type=0&mode=and&lang=en&bquery=@q',
       ],

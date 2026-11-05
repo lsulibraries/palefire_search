@@ -21,11 +21,17 @@
  * - total: the list's total, when there's one list.
  * - sort, sorts: the current sort and those on offer (value => label).
  * - links: [label, url], searches elsewhere.
+ * - via: the service behind a chosen source: [label, url, also: [label, url]].
+ *   A section can have its own.
  * - sections: [key, label, list or late_url and full_url].
  * - list: one list, when a source is chosen or the mode is merged.
  * - notice: a message about this search.
  */
 #}
+{% import _self as index %}
+{% macro via(via) %}
+  <p class="pf-index-via">{{ 'Uses'|t }} <a href="{{ via.url }}">{{ via.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% for other in via.also %}<span aria-hidden="true"> · </span>{{ 'Also try the'|t }} <a href="{{ other.url }}">{{ other.label }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>{% endfor %}</p>
+{% endmacro %}
 {# data-no-swup on whatever changes the search: js/index-search.js swaps the
    results for those, and Swup would prefetch them on hover, running a whole
    search each time. Result links stay Swup's. #}
@@ -135,12 +141,12 @@
         {% endif %}
 
         {% if list %}
-          <section aria-labelledby="pf-index-results"><h2 class="visually-hidden" id="pf-index-results">{{ 'Results'|t }}</h2>{{ list }}</section>
+          <section aria-labelledby="pf-index-results"><h2 class="visually-hidden" id="pf-index-results">{{ 'Results'|t }}</h2>{% if via %}{{ index.via(via) }}{% endif %}{{ list }}</section>
         {% endif %}
 
         {% for section in sections %}
           <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" aria-labelledby="pf-index-{{ section.key }}">
-            <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2></div>
+            <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2>{% if section.via %}{{ index.via(section.via) }}{% endif %}</div>
             {% if section.late_url %}
               <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">
                 <p class="pf-index-list__status"><a href="{{ section.full_url }}" data-no-swup>{{ 'Show results from @label'|t({'@label': section.label}) }}</a></p>
