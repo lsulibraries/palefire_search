@@ -20,10 +20,12 @@
 {% import _self as holdings %}
 {% for record in records %}
   {# One shelf of numbered items: the list's row names the first item's call
-     number, and index-search.js swaps in the one for them all. #}
+     number, and index-search.js swaps in the one for them all, or says there
+     are more. #}
   {% set only = record.copies|length == 1 ? record.copies|first %}
-  {% set whole_call = only and only.items and only.general_call and only.general_call != (only.items|first).call_number %}
-  <div data-pf-index-holdings-for="{{ record.id }}"{% if whole_call %} data-pf-index-call="{{ only.general_call }}" data-pf-index-call-first="{{ (only.items|first).call_number }}"{% endif %}>
+  {% set first_call = only and only.items ? (only.items|first).call_number %}
+  {% set whole_call = first_call ? (only.general_call ?: (only.call_count > 1 ? '@call + @count more'|t({'@call': first_call, '@count': only.call_count - 1}))) %}
+  <div data-pf-index-holdings-for="{{ record.id }}"{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
     {% if record.state == 'online' and record.more == 0 %}
       <p class="pf-index-row__holdings-line"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
     {% else %}
@@ -98,7 +100,11 @@
                   {% set item_call = item.copy ? '@call, copy @copy'|t({'@call': item.call_number, '@copy': item.copy}) : item.call_number %}
                   <tr role="row" class="pf-index-row__copy-item">
                     {% if item.contents %}
-                      <td role="cell" class="pf-index-row__item-contents" colspan="3" data-label="{{ 'Contents'|t }}"><span>{{ item.contents|replace({',': ', ', ', ': ', '}) }}</span></td>
+                      <td role="cell" class="pf-index-row__item-contents" colspan="3" data-label="{{ 'LSU has'|t }}">
+                        {%- for line in item.contents -%}
+                          <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
+                        {%- endfor -%}
+                      </td>
                     {% else %}
                       <td role="cell"></td>
                       <td role="cell"></td>

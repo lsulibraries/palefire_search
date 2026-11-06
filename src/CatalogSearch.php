@@ -378,7 +378,8 @@ class CatalogSearch {
    *   id; state: available, online, out or listed (held, with no copy to check);
    *   place, reason and due for the first entry; more, how many other entries;
    *   title; url, the record's page; and copies, each [library, shelf, type,
-   *   call_number, general_call, call_more, first_call, map_library, floor,
+   *   call_number (empty where items have their own and nothing covers them all),
+   *   general_call, call_count, call_more, first_call, map_library, floor,
    *   map_url, has (lines, less any an item took as its contents),
    *   available, total, online, reason, due, hold_url, request_url, reading_room,
    *   items, items_more]. reading_room: it's requested to view, not taken away. With more than one physical item on a shelf, items has each
@@ -389,7 +390,7 @@ class CatalogSearch {
   private function holding(array $title, array $libraries, array $locations, array $types): ?array {
     $id = (string) ($title['titleID'] ?? '');
     $groups = [];
-    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'type' => '', 'available' => 0, 'total' => 0, 'reason' => '', 'due' => '', 'items' => []];
+    $blank = ['calls' => [], 'marc_call' => '', 'marc_calls' => [], 'holdings' => [], 'type' => '', 'available' => 0, 'total' => 0, 'reason' => '', 'due' => '', 'items' => []];
 
     foreach ($title['CallInfo'] ?? [] as $call) {
       $library = (string) ($call['libraryID'] ?? '');
@@ -418,7 +419,7 @@ class CatalogSearch {
         $groups[$group]['items'][] = [
           'call_number' => $number,
           'copy' => $on_call > 1 ? $index + 1 : 0,
-          'contents' => '',
+          'contents' => [],
           'available' => $here,
           'reason' => $reason,
           'due' => $due,
@@ -445,7 +446,10 @@ class CatalogSearch {
         $group = $library . '|' . $home;
         $groups[$group] ??= $blank;
         $groups[$group]['marc_call'] = $groups[$group]['marc_call'] ?: $number;
-        array_push($groups[$group]['has'], ...$has);
+        if ($number !== '') {
+          $groups[$group]['marc_calls'][] = $number;
+        }
+        $groups[$group]['holdings'][] = ['call' => $number, 'lines' => $has];
       }
     }
     if ($id === '' || !$groups) {
@@ -472,14 +476,18 @@ class CatalogSearch {
         $item['request_url'] = $requested ? $this->requestUrl($id, $type, $home, $shelf, $item['call_number'] ?: $first_call, $about) : NULL;
         $items[] = $item;
       }
-      [$items, $has] = $this->withContents($items, $found['has']);
+      [$items, $has] = $this->withContents($items, $found['holdings']);
+      // A holding's call number covers the shelf only if it isn't one item's own.
+      $whole = $found['marc_calls'] && !array_intersect($found['marc_calls'], $calls) ? $found['marc_calls'][0] : '';
+      $several = $listed && count($calls) > 1;
       $copies[] = [
         'library' => $libraries[$library] ?? $library,
         'shelf' => $shelf,
         'type' => $type,
-        'call_number' => $found['marc_call'] ?: implode(', ', array_slice($calls, 0, 3)),
-        'general_call' => $found['marc_call'],
-        'call_more' => $found['marc_call'] ? 0 : max(0, count($calls) - 3),
+        'call_number' => $whole ?: ($several ? '' : implode(', ', array_slice($calls, 0, 3))),
+        'general_call' => $whole,
+        'call_count' => count($calls),
+        'call_more' => $whole || $several ? 0 : max(0, count($calls) - 3),
         'first_call' => $first_call,
         'map_library' => $physical && !$requested ? (self::MAP_LIBRARIES[$library] ?? ($libraries[$library] ?? '')) : '',
         'floor' => '',
@@ -521,24 +529,36 @@ class CatalogSearch {
   }
 
   /**
-   * Gives each box or volume the line of holdings that names it.
+   * Gives each item the lines of holdings that belong to it.
    *
-   * A line such as "no.10(1962:Jan.),no.20(1963:Apr.) Box 1" belongs to the item
-   * whose call number ends in "Box 1". The catalog has no link between them, so
-   * this only goes by the words, and a line matching no item is left as it was.
+   * A holding with an item's call number is that item's: the catalog says so.
+   * Where one holding covers a whole run, a line such as
+   * "no.10(1962:Jan.),no.20(1963:Apr.) Box 1" belongs to the item whose call
+   * number ends in "Box 1". That only goes by the words, and a line matching no
+   * item is left as it was.
    *
    * @return array
    *   The items, and the lines left over.
    */
-  private function withContents(array $items, array $lines): array {
+  private function withContents(array $items, array $holdings): array {
     $left = [];
+    $lines = [];
+    foreach ($holdings as $holding) {
+      foreach ($items as $index => $item) {
+        if ($holding['call'] !== '' && $item['contents'] === [] && $item['call_number'] === $holding['call']) {
+          $items[$index]['contents'] = $holding['lines'];
+          continue 2;
+        }
+      }
+      array_push($lines, ...$holding['lines']);
+    }
     foreach ($lines as $line) {
       $found = FALSE;
       if (preg_match('/^(.+?)[\s,;:.-]*\b(box\s*[\w.-]+|vol(?:ume|\.)?\s*[\w.-]+)$/iu', $line, $part)) {
         $name = ' ' . mb_strtolower((string) preg_replace('/\s+/u', ' ', $part[2]));
         foreach ($items as $index => $item) {
-          if ($item['contents'] === '' && str_ends_with(' ' . mb_strtolower((string) preg_replace('/\s+/u', ' ', $item['call_number'])), $name)) {
-            $items[$index]['contents'] = $part[1];
+          if ($item['contents'] === [] && str_ends_with(' ' . mb_strtolower((string) preg_replace('/\s+/u', ' ', $item['call_number'])), $name)) {
+            $items[$index]['contents'] = [$part[1]];
             $found = TRUE;
             break;
           }
