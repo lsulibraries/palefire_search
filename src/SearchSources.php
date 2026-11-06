@@ -64,23 +64,27 @@ final class SearchSources {
       'research' => [
         'label' => 'Research',
         'layout' => 'sections',
-        'sources' => ['articles', 'catalog', 'databases', 'etextbooks', 'guides', 'archive'],
+        'sources' => ['catalog', 'articles', 'databases', 'etextbooks', 'guides', 'archive'],
         'links' => ['repository'],
+      ],
+      'special' => [
+        'label' => 'Special Collections',
+        'layout' => 'merged',
+        'sources' => ['catalog', 'archive', 'news_special'],
+        // Shown above the merged list until a source is chosen: a merged list can't
+        // hold an outside source. list_label names the list under it.
+        'lead' => ['catalog'],
+        'list_label' => 'Archives and News',
+        // Record type is this mode's main filter, so it's always offered.
+        'refine_sources' => ['archive'],
+        // Filters already chosen when a source is, which can still be changed.
+        'refine_defaults' => ['catalog' => ['library_special']],
+        'links' => [],
       ],
       'website' => [
         'label' => 'Website',
         'layout' => 'merged',
         'sources' => ['pages', 'faq', 'gear', 'news', 'staff'],
-        'links' => [],
-      ],
-      'special' => [
-        'label' => 'Special Collections',
-        'layout' => 'merged',
-        'sources' => ['archive', 'news_special', 'catalog'],
-        // Record type is this mode's main filter, so it's always offered.
-        'refine_sources' => ['archive'],
-        // Filters already chosen when a source is, which can still be changed.
-        'refine_defaults' => ['catalog' => ['library_special']],
         'links' => [],
       ],
     ];
@@ -96,7 +100,7 @@ final class SearchSources {
         'about' => 'Articles, books, e-books and more from across the Libraries’ subscriptions and collections, searched at once. A good place to start.',
         'kind' => 'external',
         'adapter' => 'discovery',
-        // It leads the page, and it's the widest source, so it shows the most.
+        // It's the widest source, so it shows the most.
         'section_limit' => 5,
         // Its full list is on this page, with filters: go there, not away.
         'lists_here' => TRUE,

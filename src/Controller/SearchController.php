@@ -161,6 +161,14 @@ class SearchController extends ControllerBase {
         $build['#sort'] = $sort;
         $build['#sorts'] = array_map(fn(string $label): mixed => $this->t($label), $sorts);
       }
+      // A source this mode leads with goes above its list, with that source's
+      // own defaults. On the first page only: paging is through the list.
+      $lead = !$selected && $page === 0 ? ($mode['lead'] ?? []) : [];
+      if ($lead) {
+        $build['#sections'] = $this->sections($lead, $mode_key, $query, array_intersect_key($mode['refine_defaults'] ?? [], array_flip($lead)), $years);
+        $build['#list_title'] = $this->t($mode['list_label']);
+        $build['#list_source'] = array_values(array_diff($mode['sources'], $lead))[0];
+      }
     }
     else {
       $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines, $years);
@@ -439,7 +447,8 @@ class SearchController extends ControllerBase {
    * The filter groups: Source, then each source's own filter.
    *
    * Each option counts on its own, so a count says what choosing it would
-   * add. Options with nothing to add are left out unless they're chosen.
+   * add. Options with nothing to add are disabled, unless they're chosen and
+   * need a way back.
    * Outside services have no count, since one would mean calling them.
    */
   private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query): array {
@@ -454,9 +463,7 @@ class SearchController extends ControllerBase {
       // Ticked only if chosen. A record type limits results to its source without
       // ticking it, or the form would send that back as a choice of its own.
       $checked = in_array($key, $chosen, TRUE);
-      if ($count !== 0 || $checked) {
-        $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked];
-      }
+      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
     }
     $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options, 'about' => $about]];
 
@@ -476,9 +483,7 @@ class SearchController extends ControllerBase {
         $value = (string) $value;
         $count = $this->local->count([$key], $query, [$key => [$value]]);
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
-        if ($count > 0 || $checked) {
-          $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked];
-        }
+        $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
       if ($options) {
         $groups[] = ['title' => $this->t($definition['refine_label']), 'name' => 'refine[]', 'options' => $options];
@@ -500,9 +505,7 @@ class SearchController extends ControllerBase {
       foreach ($values as $value) {
         $count = $counts[$value] ?? NULL;
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
-        if ($count !== 0 || $checked) {
-          $options[] = ['label' => $definition['refine_options'][$value], 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked];
-        }
+        $options[] = ['label' => $definition['refine_options'][$value], 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
       if ($options && $single) {
         // Round buttons, which need a way back to no choice and a name of their

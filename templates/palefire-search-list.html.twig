@@ -65,9 +65,6 @@
           {% if item.full_text_url %}
             <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
           {% endif %}
-          {% if item.holdings_id %}
-            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id }}"></div>
-          {% endif %}
           {% if item.details %}
             <details class="pf-index-row__details">
               <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>{{ 'Book details'|t }}{% if item.details|length > 1 %} · {{ '@count sections'|t({'@count': item.details|length}) }}{% endif %}</summary>
@@ -95,6 +92,9 @@
             <div class="pf-index-row__thumb">{{ item.image }}</div>
           {% elseif item.image_url %}
             <div class="pf-index-row__thumb pf-index-row__thumb--cover"><img src="{{ item.image_url }}" alt="" width="88" height="110" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>
+          {% endif %}
+          {% if item.holdings_id %}
+            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id }}"></div>
           {% endif %}
         </li>
       {% endfor %}

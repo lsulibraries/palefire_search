@@ -26,6 +26,8 @@ function palefire_search_theme(): array {
         'links' => [],
         'sections' => [],
         'list' => NULL,
+        'list_title' => NULL,
+        'list_source' => NULL,
         'via' => NULL,
         'notice' => NULL,
         'action' => '',
