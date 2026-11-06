@@ -465,6 +465,12 @@ class SearchController extends ControllerBase {
       $checked = in_array($key, $chosen, TRUE);
       $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
     }
+    // Not searched yet, so never counted or chosen: selection() only keeps sources.
+    foreach ($mode['upcoming'] ?? [] as $key) {
+      $definition = SearchSources::get($key);
+      $about[] = ['label' => $definition['label'], 'text' => $definition['about']];
+      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => NULL, 'checked' => FALSE, 'disabled' => TRUE];
+    }
     $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options, 'about' => $about]];
 
     // A source's own filter shows once that source is chosen, or always where

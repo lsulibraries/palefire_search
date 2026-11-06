@@ -17,6 +17,8 @@ namespace Drupal\palefire_search;
  *   field_article_category.
  * - external: a View whose query plugin calls an outside service.
  * - link: no results here, only a link to search elsewhere.
+ * - upcoming: not searched yet. A mode's "upcoming" list offers it as a disabled
+ *   Source option with its definition, and it can't be chosen.
  */
 final class SearchSources {
 
@@ -65,6 +67,7 @@ final class SearchSources {
         'label' => 'Research',
         'layout' => 'sections',
         'sources' => ['catalog', 'articles', 'databases', 'etextbooks', 'guides', 'archive'],
+        'upcoming' => ['alma'],
         'links' => ['repository'],
       ],
       'special' => [
@@ -79,6 +82,7 @@ final class SearchSources {
         'refine_sources' => ['archive'],
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
+        'upcoming' => ['alma'],
         'links' => [],
       ],
       'website' => [
@@ -198,6 +202,11 @@ final class SearchSources {
         'year_filter' => TRUE,
         'more_label' => 'Search the Catalog',
         'more_url' => 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/results?user_id=&qu=@q&rt=Keyword&qf=ALL',
+      ],
+      'alma' => [
+        'label' => 'Alma (coming soon)',
+        'about' => 'The Libraries’ next system for finding and requesting what they hold. It isn’t searched here yet.',
+        'kind' => 'upcoming',
       ],
       'databases' => [
         'label' => 'Databases',
