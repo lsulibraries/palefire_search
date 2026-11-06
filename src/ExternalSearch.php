@@ -44,7 +44,8 @@ class ExternalSearch {
    * @return array
    *   total, reachable (when fewer can be paged to), capped (when there may be
    *   more than the total), failed, and items: [title,
-   *   url, external, summary, meta, source, type, full_text_url, image_url].
+   *   url, external, summary, meta, source, type, full_text_url, image_url,
+   *   holdings_id]. backup is TRUE when a stand-in service answered.
    */
   public function search(array $source, string $query, int $page, int $limit, string $sort = 'relevance', array $filters = []): array {
     // Each service reads operators its own way.
@@ -77,6 +78,13 @@ class ExternalSearch {
       $results['items'][$index] = $item;
     }
     return $results;
+  }
+
+  /**
+   * Where the Catalog's records are held, by record ID, or NULL on a failure.
+   */
+  public function catalogHoldings(array $ids): ?array {
+    return $this->catalog->holdings($ids);
   }
 
   /**

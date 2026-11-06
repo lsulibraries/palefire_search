@@ -5,9 +5,16 @@ The Index: the search page at `/v2/search`, in the Palefire theme.
 - **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
   E-Textbooks, Archive Records): direct Search API queries on the
   `bento_search` index, matching all words.
-- **External sources** (Discovery, Catalog, Research Guides): the existing Views,
-  run for their data. Their sections load after the page.
-- **Links only** (Scholarly Repository, Catalog).
+- **External sources** (Discovery, Catalog, Research Guides): each from its own
+  service. Their sections load after the page.
+- **Links only** (Scholarly Repository).
+
+The Catalog uses two public services together. Its results feed chooses and
+orders the rows, because only the feed ranks by relevance. Its web service then
+adds each row's copies and availability, from `/v2/search/holdings`, which loads
+after the rows and is kept for two minutes. If the feed goes down, the web service
+answers the search too, newest first and saying so. It has no working Type or Year
+filter, so a search using one shows the failure message instead.
 
 `src/SearchSources.php` holds every source and mode. To swap a service (such as
 Discovery to Alma), change its definition and add an adapter in

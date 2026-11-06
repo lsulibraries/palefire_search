@@ -17,6 +17,12 @@ use GuzzleHttp\Exception\GuzzleException;
  * numbers. Everything vendor-specific stays here: when the Catalog moves to
  * Alma, replace this class and the rest of the module keeps its filter names
  * and row shape.
+ *
+ * The catalog's web service works in tandem with the feed. The feed chooses and
+ * orders the rows, because only it ranks by relevance. The service then says
+ * where each row's copies are and whether they're available, which changes too
+ * often to keep with the rows. If the feed goes down, the service also answers
+ * the search, newest first, because that's the only order it has.
  */
 class CatalogSearch {
 
@@ -44,6 +50,63 @@ class CatalogSearch {
    * How long a search is kept, in seconds.
    */
   private const KEEP = 3600;
+
+  /**
+   * The web service's address, and the public ID the catalog's own pages use.
+   */
+  private const SERVICE = 'https://lalu.sirsi.net/lalu_ilsws/rest/';
+  private const CLIENT = 'DS_CLIENT';
+
+  /**
+   * How long availability is kept, in seconds, and names of places.
+   */
+  private const HOLDINGS_KEEP = 120;
+  private const NAMES_KEEP = 86400;
+
+  /**
+   * Seconds to wait. A late section gives up after 20, and the feed and the
+   * service may both have to answer within that.
+   */
+  private const FEED_TIMEOUT = 12;
+  private const SERVICE_TIMEOUT = 5;
+
+  /**
+   * The place an online copy lives, and the call number it has there.
+   */
+  private const ONLINE = 'ONLINE';
+  private const ONLINE_CALL_NUMBER = 'AVAILABLE ONLINE';
+
+  /**
+   * Places that mean a copy can't be had, even when one is its home.
+   */
+  private const AWAY = [
+    'BINDERY', 'CATALOGING', 'CHECKEDOUT', 'DISCARD', 'HOLDS', 'ILL', 'INPROCESS',
+    'INSHIPPING', 'INTRANSIT', 'LONGOVRDUE', 'LOST', 'LOST-ASSUM', 'LOST-CLAIM',
+    'LOST-PAID', 'MISSING', 'ON-ORDER', 'ONLINE-NLA', 'OVD-RECALL', 'REPAIR',
+  ];
+
+  /**
+   * Plainer words for the commonest reasons. The rest use the service's own.
+   */
+  private const REASONS = [
+    'CHECKEDOUT' => 'Checked out',
+    'HOLDS' => 'On hold',
+    'ON-ORDER' => 'On order',
+  ];
+
+  /**
+   * What a record is, for rows from the service, which only has a code.
+   */
+  private const KINDS = [
+    'BOOK' => 'Book',
+    'ER' => 'Electronic Resources',
+    'MAP' => 'Map',
+    'MICROFORM' => 'Microform',
+    'MUSICSNDREC' => 'Sound recording',
+    'NOTATEDMUSIC' => 'Music Score',
+    'SOUNDDISC' => 'Sound recording',
+    'VIDEODISC' => 'Video',
+  ];
 
   /**
    * The filters: the service's filter, its name, the value and its name.
@@ -110,7 +173,8 @@ class CatalogSearch {
    *
    * @return array
    *   total, reachable, capped (TRUE when there may be more than the total),
-   *   failed, and items.
+   *   failed, backup (TRUE when the feed was down and the service answered),
+   *   and items.
    */
   public function search(string $terms, array $filters, int $page, int $limit): array {
     $this->counts = [];
@@ -123,7 +187,7 @@ class CatalogSearch {
 
     $records = $this->records($address);
     if ($records === NULL) {
-      return ['total' => NULL, 'failed' => TRUE, 'items' => []];
+      return $this->serviceSearch($terms, $filters, $page, $limit);
     }
     $found = count($records);
 
@@ -151,6 +215,286 @@ class CatalogSearch {
    */
   public function counts(): array {
     return $this->counts;
+  }
+
+  /**
+   * Where each record's copies are, and whether they're available.
+   *
+   * @param string[] $ids
+   *   Record IDs, as digits.
+   *
+   * @return array|null
+   *   Each record's holdings by its ID, leaving out records with none, or NULL
+   *   if the service couldn't be reached. See holding().
+   */
+  public function holdings(array $ids): ?array {
+    if (!$ids) {
+      return [];
+    }
+    sort($ids);
+    $key = 'palefire_search:catalog_holdings:' . hash('sha256', implode(',', $ids));
+    $kept = $this->cache->get($key);
+    if ($kept) {
+      return $kept->data;
+    }
+
+    $titles = array_map(static fn(string $id): string => 'titleID=' . $id, $ids);
+    $answer = $this->service('standard/lookupTitleInfo', implode('&', $titles) . '&includeItemInfo=true&includeAvailabilityInfo=true&includeMarcHoldings=true&marcEntryFilter=ALL');
+    if ($answer === NULL) {
+      return NULL;
+    }
+
+    $libraries = $this->names('lookupLibraryPolicyList');
+    $locations = $this->names('lookupLocationPolicyList');
+    $holdings = [];
+    foreach ($answer['TitleInfo'] ?? [] as $title) {
+      $holding = $this->holding($title, $libraries, $locations);
+      if ($holding) {
+        $holdings[$holding['id']] = $holding;
+      }
+    }
+    $this->cache->set($key, $holdings, time() + self::HOLDINGS_KEEP);
+    return $holdings;
+  }
+
+  /**
+   * One record's holdings: one entry for each library and shelf.
+   *
+   * A journal has a call number for every volume, so grouping by call number
+   * would list a hundred rows for one shelf.
+   *
+   * @return array|null
+   *   id; state: available, online, out or listed (held, with no copy to check);
+   *   place, reason and due for the first entry; more, how many other entries;
+   *   url, the record's page; and copies, each [library, shelf, call_number,
+   *   call_more, has, available, total, online, reason, due]. NULL with no copies.
+   */
+  private function holding(array $title, array $libraries, array $locations): ?array {
+    $id = (string) ($title['titleID'] ?? '');
+    $groups = [];
+    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'available' => 0, 'total' => 0, 'reason' => '', 'due' => ''];
+
+    foreach ($title['CallInfo'] ?? [] as $call) {
+      $library = (string) ($call['libraryID'] ?? '');
+      $number = trim((string) ($call['callNumber'] ?? ''));
+      foreach ($call['ItemInfo'] ?? [] as $item) {
+        $home = (string) ($item['homeLocationID'] ?? '');
+        $current = (string) ($item['currentLocationID'] ?? $home);
+        $group = $library . '|' . $home;
+        $groups[$group] ??= $blank;
+        $groups[$group]['total']++;
+        if ($number !== '' && $number !== self::ONLINE_CALL_NUMBER) {
+          $groups[$group]['calls'][$number] = TRUE;
+        }
+        if ($current === $home && empty($item['dueDate']) && !in_array($current, self::AWAY, TRUE)) {
+          $groups[$group]['available']++;
+        }
+        elseif ($groups[$group]['reason'] === '') {
+          $groups[$group]['reason'] = $this->reason($current, $locations);
+          $groups[$group]['due'] = empty($item['dueDate']) ? '' : date('M j, Y', (int) ((int) $item['dueDate'] / 1000));
+        }
+      }
+    }
+
+    // Journals say what's held, and their general call number, for each shelf.
+    foreach ($title['MarcHoldingsInfo'] ?? [] as $holding) {
+      $library = (string) ($holding['holdingLibraryID'] ?? '');
+      $home = '';
+      $number = '';
+      $has = [];
+      foreach ($holding['MarcEntryInfo'] ?? [] as $entry) {
+        $text = trim((string) ($entry['text'] ?? ''));
+        if ((string) ($entry['entryID'] ?? '') === '852') {
+          [$home, $number] = array_map('trim', array_pad(explode('--', $text, 2), 2, ''));
+        }
+        elseif ((string) ($entry['entryID'] ?? '') === '866' && $text !== '') {
+          $has[] = rtrim($text, ' ;');
+        }
+      }
+      if ($home !== '') {
+        $group = $library . '|' . $home;
+        $groups[$group] ??= $blank;
+        $groups[$group]['marc_call'] = $groups[$group]['marc_call'] ?: $number;
+        array_push($groups[$group]['has'], ...$has);
+      }
+    }
+    if ($id === '' || !$groups) {
+      return NULL;
+    }
+
+    $copies = [];
+    foreach ($groups as $group => $found) {
+      [$library, $home] = explode('|', $group, 2);
+      $calls = array_map('strval', array_keys($found['calls']));
+      $copies[] = [
+        'library' => $libraries[$library] ?? $library,
+        'shelf' => $locations[$home] ?? $home,
+        'call_number' => $found['marc_call'] ?: ($calls[0] ?? ''),
+        'call_more' => $found['marc_call'] ? 0 : max(0, count($calls) - 1),
+        'has' => implode('; ', $found['has']),
+        'available' => $found['available'],
+        'total' => $found['total'],
+        'online' => $home === self::ONLINE,
+        'reason' => $found['reason'],
+        'due' => $found['due'],
+      ];
+    }
+    // What someone can go and get comes first, then where there's most of it.
+    usort($copies, fn(array $a, array $b): int => [$this->rank($a), $b['available']] <=> [$this->rank($b), $a['available']]);
+
+    $first = $copies[0];
+    return [
+      'id' => $id,
+      'state' => match ($this->rank($first)) {
+        0 => 'available',
+        1 => 'online',
+        2 => 'out',
+        default => 'listed',
+      },
+      'place' => $first['library'] . ' · ' . $first['shelf'],
+      'reason' => $first['reason'],
+      'due' => $first['due'],
+      'more' => count($copies) - 1,
+      'url' => ResultText::url(self::RECORD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id . '/one'),
+      'copies' => $copies,
+    ];
+  }
+
+  /**
+   * An entry's place in the list: available, online, not available, or listed.
+   */
+  private function rank(array $copy): int {
+    return match (TRUE) {
+      $copy['available'] > 0 && !$copy['online'] => 0,
+      $copy['available'] > 0 => 1,
+      $copy['total'] > 0 => 2,
+      default => 3,
+    };
+  }
+
+  /**
+   * Why a copy can't be had, from where it is now.
+   */
+  private function reason(string $current, array $locations): string {
+    if (isset(self::REASONS[$current])) {
+      return self::REASONS[$current];
+    }
+    $name = trim(preg_replace('/[.\s]*Due:\s*$/', '', $locations[$current] ?? $current) ?? $current);
+    return str_ends_with($current, '_RESV') ? 'On reserve at ' . $name : $name;
+  }
+
+  /**
+   * A list of the service's codes and their names, kept for a day. A code with
+   * no name shows as itself, and a failure isn't kept.
+   */
+  private function names(string $list): array {
+    $key = 'palefire_search:catalog_names:' . $list;
+    $kept = $this->cache->get($key);
+    if ($kept) {
+      return $kept->data;
+    }
+    $answer = $this->service('admin/' . $list);
+    if ($answer === NULL) {
+      return [];
+    }
+    $names = [];
+    foreach ($answer['policyInfo'] ?? [] as $policy) {
+      if (isset($policy['policyID'], $policy['policyDescription'])) {
+        $names[$policy['policyID']] = trim($policy['policyDescription']);
+      }
+    }
+    $this->cache->set($key, $names, time() + self::NAMES_KEEP);
+    return $names;
+  }
+
+  /**
+   * The search from the service, for when the feed is down.
+   *
+   * The service has no Type or Year filter that works. Rows ignoring a filter
+   * someone chose would look like an answer, so that counts as a failure, and
+   * the page offers the catalog's own site. Its answers aren't kept: the next
+   * search should try the feed again.
+   */
+  private function serviceSearch(string $terms, array $filters, int $page, int $limit): array {
+    $failed = ['total' => NULL, 'failed' => TRUE, 'items' => []];
+    if (isset($filters['from']) || isset($filters['to'])) {
+      return $failed;
+    }
+    $limits = '';
+    foreach ($filters['refine'] ?? [] as $option) {
+      [$filter, , $value] = self::FILTERS[$option] ?? ['', '', ''];
+      if ($filter === 'LIBRARY') {
+        $limits .= '&libraryFilter=' . rawurlencode(substr($value, strpos($value, ':') + 1));
+      }
+      elseif ($filter === 'LANGUAGE') {
+        $limits .= '&languageFilter=' . rawurlencode($value);
+      }
+      else {
+        return $failed;
+      }
+    }
+
+    $answer = $this->service('standard/searchCatalog', 'term1=' . rawurlencode($terms) . '&hitsToDisplay=' . $limit . $limits);
+    if ($answer === NULL) {
+      return $failed;
+    }
+    $total = (int) ($answer['totalHits'] ?? 0);
+    $reachable = min($total, self::MAX_RECORDS);
+    $page = min($page, (int) floor(max(0, $reachable - 1) / $limit));
+    // Its search only gives the first page. The rest come from its query's ID.
+    if ($page > 0) {
+      $answer = $this->service('standard/searchCatalogPaging', 'queryID=' . rawurlencode((string) ($answer['queryID'] ?? '')) . '&firstHitToDisplay=' . ($page * $limit + 1) . '&lastHitToDisplay=' . ($page * $limit + $limit));
+      if ($answer === NULL) {
+        return $failed;
+      }
+    }
+
+    $items = [];
+    foreach ($answer['HitlistTitleInfo'] ?? [] as $hit) {
+      $title = rtrim(ResultText::clean($hit['title'] ?? ''), ' /,:;=');
+      if ($title === '' || empty($hit['titleID'])) {
+        continue;
+      }
+      // Its author can end with web addresses for the same person.
+      $author = trim(preg_replace('#\s*https?://\S+#', '', ResultText::clean($hit['author'] ?? '')) ?? '');
+      $id = (string) $hit['titleID'];
+      $items[] = [
+        'title' => $title,
+        'url' => ResultText::url(self::RECORD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id . '/one'),
+        'summary' => '',
+        'meta' => implode(' · ', array_filter([
+          $this->withoutFinalPeriod($author),
+          (string) ($hit['yearOfPublication'] ?? ''),
+          ResultText::clean($hit['callNumber'] ?? ''),
+        ])),
+        'type' => self::KINDS[$hit['materialType'] ?? ''] ?? '',
+        'full_text_url' => NULL,
+        'holdings_id' => $id,
+      ];
+    }
+    return [
+      'total' => $total,
+      'reachable' => $reachable,
+      'capped' => FALSE,
+      'failed' => FALSE,
+      'backup' => TRUE,
+      'items' => $items,
+    ];
+  }
+
+  /**
+   * An answer from the web service, or NULL if there isn't a usable one.
+   */
+  private function service(string $method, string $parameters = ''): ?array {
+    $body = $this->fetch(self::SERVICE . $method . '?clientID=' . self::CLIENT . '&json=true' . ($parameters === '' ? '' : '&' . $parameters), self::SERVICE_TIMEOUT);
+    $answer = $body === NULL ? NULL : json_decode($body, TRUE);
+    if (!is_array($answer) || isset($answer['faultResponse']) || isset($answer['Fault'])) {
+      if ($body !== NULL) {
+        $this->loggerFactory->get('palefire_search')->error('Catalog service gave no usable answer to @method.', ['@method' => $method]);
+      }
+      return NULL;
+    }
+    return $answer;
   }
 
   /**
@@ -279,11 +623,11 @@ class CatalogSearch {
   /**
    * A page's text, or NULL if it couldn't be fetched.
    */
-  private function fetch(string $url): ?string {
+  private function fetch(string $url, int $timeout = self::FEED_TIMEOUT): ?string {
     try {
       $response = $this->client->request('GET', $url, [
         'connect_timeout' => 5,
-        'timeout' => 15,
+        'timeout' => $timeout,
         'http_errors' => FALSE,
         'headers' => ['User-Agent' => 'LSU Libraries search'],
       ]);
@@ -332,6 +676,7 @@ class CatalogSearch {
       ])),
       'type' => ResultText::clean($fields['Format'] ?? ''),
       'full_text_url' => $this->fullText($fields['Electronic Access'] ?? ''),
+      'holdings_id' => preg_match('#:(\d+)$#', $id, $match) ? $match[1] : NULL,
     ];
   }
 

@@ -1,0 +1,66 @@
+{#
+/**
+ * @file
+ * Where listed records are held: a fragment the list's rows take their parts
+ * from once it loads.
+ *
+ * Variables:
+ * - records: each [id, state, place, reason, due, more, url, copies].
+ *   state: available, online, out or listed. Each copy is one library and shelf:
+ *   [library, shelf, call_number, call_more, has, available, total, online,
+ *   reason, due].
+ */
+#}
+{% macro why(entry) %}{{ entry.reason ?: 'Ask at the library'|t }}{% if entry.due %}, {{ 'due @date'|t({'@date': entry.due}) }}{% endif %}{% endmacro %}
+{% import _self as holdings %}
+{% for record in records %}
+  <div data-pf-index-holdings-for="{{ record.id }}">
+    {% if record.state == 'online' and record.more == 0 %}
+      <p class="pf-index-row__holdings-line"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
+    {% else %}
+      <details class="pf-index-row__details">
+        <summary>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>
+          <span>
+            {%- if record.state == 'available' -%}
+              <span class="pf-index-row__status">{{ 'Available'|t }}</span> {{ 'at @place'|t({'@place': record.place}) }}
+            {%- elseif record.state == 'online' -%}
+              <span class="pf-index-row__status">{{ 'Available online'|t }}</span>
+            {%- elseif record.state == 'out' -%}
+              <span class="pf-index-row__status">{{ 'Not available'|t }}</span> · {{ holdings.why(record) }}
+            {%- else -%}
+              <span class="pf-index-row__status">{{ 'Held'|t }}</span> {{ 'at @place'|t({'@place': record.place}) }}
+            {%- endif -%}
+            {%- if record.more > 0 %} · {{ '+ @count more'|t({'@count': record.more}) }}{% endif -%}
+          </span>
+        </summary>
+        <div class="pf-index-row__label pf-index-row__label--holdings">
+          <ul class="pf-index-row__copies" role="list">
+            {% for copy in record.copies %}
+              <li>
+                <dl>
+                  <div><dt>{{ 'Library'|t }}</dt><dd>{{ copy.library }}</dd></div>
+                  <div><dt>{{ 'Shelf location'|t }}</dt><dd>{{ copy.shelf }}</dd></div>
+                  {% if copy.call_number %}<div><dt>{{ 'Call number'|t }}</dt><dd>{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</dd></div>{% endif %}
+                  {% if copy.has %}<div><dt>{{ 'LSU has'|t }}</dt><dd>{{ copy.has }}</dd></div>{% endif %}
+                  {% if copy.total %}
+                    <div><dt>{{ 'Status'|t }}</dt><dd>
+                      {%- if copy.total == 1 and copy.available == 1 -%}
+                        {{ copy.online ? 'Available online'|t : 'Available'|t }}
+                      {%- elseif copy.available -%}
+                        {{ '@available of @total available'|t({'@available': copy.available, '@total': copy.total}) }}
+                      {%- else -%}
+                        {{ holdings.why(copy) }}
+                      {%- endif -%}
+                    </dd></div>
+                  {% endif %}
+                </dl>
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="pf-index-row__links"><a href="{{ record.url }}">{{ 'Full record'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
+        </div>
+      </details>
+    {% endif %}
+  </div>
+{% endfor %}

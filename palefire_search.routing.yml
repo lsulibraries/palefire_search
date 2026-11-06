@@ -15,3 +15,12 @@ palefire_search.source:
   requirements:
     _access: 'TRUE'
     source: '[a-z_]+'
+
+# Where the listed Catalog records are held, loaded after them because it changes
+# far more often than they do. Answers with an HTML fragment.
+palefire_search.holdings:
+  path: '/v2/search/holdings'
+  defaults:
+    _controller: '\Drupal\palefire_search\Controller\SearchController::holdings'
+  requirements:
+    _access: 'TRUE'

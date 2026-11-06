@@ -49,6 +49,11 @@ class SearchController extends ControllerBase {
    */
   private const EXTERNAL_MAX_AGE = 600;
 
+  /**
+   * How long browsers may keep availability, in seconds.
+   */
+  private const HOLDINGS_MAX_AGE = 120;
+
   public function __construct(
     private readonly LocalSearch $local,
     private readonly ExternalSearch $external,
@@ -191,7 +196,30 @@ class SearchController extends ControllerBase {
 
     $list = $this->listBuild($definition['label'], $results, $more_url, $more_label);
     $response = new Response((string) $this->renderer->renderInIsolation($list));
-    $this->applyExternalCaching($response, $results['failed'] ?? FALSE);
+    $this->applyExternalCaching($response, !empty($results['failed']) || !empty($results['backup']));
+    return $response;
+  }
+
+  /**
+   * Where the listed records are held, as an HTML fragment.
+   *
+   * On its own address because availability changes far more often than results
+   * do, and a results page may be kept for a long time. This is a plain response,
+   * which Drupal's page cache leaves alone, so it can stay this fresh.
+   */
+  public function holdings(Request $request): Response {
+    $ids = $request->query->all()['ids'] ?? NULL;
+    $ids = is_string($ids) ? array_filter(explode(',', $ids), static fn(string $id): bool => (bool) preg_match('/^\d{1,10}$/', $id)) : [];
+    $holdings = $this->external->catalogHoldings(array_slice(array_values(array_unique($ids)), 0, self::LIST_LIMIT));
+
+    $build = ['#theme' => 'palefire_search_holdings', '#records' => $holdings ?? []];
+    $response = new Response((string) $this->renderer->renderInIsolation($build));
+    if ($holdings === NULL) {
+      $this->applyExternalCaching($response, TRUE);
+      return $response;
+    }
+    $response->setPublic();
+    $response->setMaxAge(self::HOLDINGS_MAX_AGE);
     return $response;
   }
 
@@ -303,12 +331,13 @@ class SearchController extends ControllerBase {
     $source = count($selected) === 1 ? SearchSources::get($selected[0]) : NULL;
     if ($source && $source['kind'] === 'external') {
       $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort, ['refine' => $refines[$selected[0]] ?? [], 'full' => TRUE, ...$years]);
-      if ($results['failed']) {
+      $brief = $results['failed'] || !empty($results['backup']);
+      if ($brief) {
         // Never keep a failure: the next visitor should get a fresh try.
         $this->killSwitch->trigger();
       }
       $list = $this->listBuild($source['label'], $results, SearchSources::moreUrl($source, $query), $source['more_label'] ?? NULL, $page);
-      $list['#cache'] = ['max-age' => $results['failed'] ? 0 : self::EXTERNAL_MAX_AGE];
+      $list['#cache'] = ['max-age' => $brief ? 0 : self::EXTERNAL_MAX_AGE];
       return [$list, $results['total'], !empty($results['capped'])];
     }
     $keys = $selected ?: array_values(array_filter($mode['sources'], static fn(string $key): bool => SearchSources::get($key)['kind'] === 'local'));
@@ -332,9 +361,14 @@ class SearchController extends ControllerBase {
       '#items' => $results['items'],
       '#failed' => $results['failed'] ?? FALSE,
       '#simplified' => $results['simplified'] ?? NULL,
+      '#backup' => !empty($results['backup']),
       '#more_url' => $more_url,
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
+    $held = array_filter(array_column($results['items'], 'holdings_id'));
+    if ($held) {
+      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => ['ids' => implode(',', $held)]])->toString();
+    }
     // A service may find more than it will return. The total stays true and the
     // pager stops where the service does, which the last page explains.
     $reachable = $results['reachable'] ?? $results['total'];

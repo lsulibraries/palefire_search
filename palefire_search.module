@@ -31,6 +31,11 @@ function palefire_search_theme(): array {
         'action' => '',
       ],
     ],
+    'palefire_search_holdings' => [
+      'variables' => [
+        'records' => [],
+      ],
+    ],
     'palefire_search_list' => [
       'variables' => [
         'label' => '',
@@ -38,6 +43,8 @@ function palefire_search_theme(): array {
         'items' => [],
         'failed' => FALSE,
         'simplified' => NULL,
+        'backup' => FALSE,
+        'holdings_url' => NULL,
         'limited' => NULL,
         'more_url' => NULL,
         'more_label' => NULL,

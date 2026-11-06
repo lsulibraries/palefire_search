@@ -8,7 +8,9 @@
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
  * - items: [title, url, external, summary, meta, source, type, full_text_url,
- *   image, image_url, login]. type says what the record is, such as Book. login
+ *   image, image_url, login, holdings_id]. holdings_id holds a place for where
+ *   the record's copies are, which loads after the list. type says what the
+ *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
  *   image is a local picture's render array. image_url is a cover from another
@@ -18,6 +20,8 @@
  *   term].
  * - failed: the source couldn't be reached. Not the same as no results.
  * - simplified: what was searched instead, when the source can't use operators.
+ * - backup: the source's usual search is down and a stand-in answered.
+ * - holdings_url: where the holdings_id places load from.
  * - limited: how many can be paged to, on the last page when more were found.
  * - more_url, more_label: a link to go further.
  * - pager: a pager, or NULL.
@@ -36,7 +40,10 @@
       {% if more_url %}<a href="{{ more_url }}">{{ more_label }}</a>{% endif %}
     </p>
   {% else %}
-    <ol class="pf-index-list__rows" role="list">
+    {% if backup %}
+      <p class="pf-index-list__status">{{ 'The usual @label search isn’t answering, so these are its newest matches, not its closest.'|t({'@label': label}) }}</p>
+    {% endif %}
+    <ol class="pf-index-list__rows" role="list"{% if holdings_url %} data-pf-index-holdings-url="{{ holdings_url }}"{% endif %}>
       {% for item in items %}
         <li class="pf-index-row{{ item.image or item.image_url ? ' pf-index-row--image' }}">
           <div class="pf-index-row__text">
@@ -57,6 +64,9 @@
           {% endif %}
           {% if item.full_text_url %}
             <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
+          {% endif %}
+          {% if item.holdings_id %}
+            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id }}"></div>
           {% endif %}
           {% if item.details %}
             <details class="pf-index-row__details">
