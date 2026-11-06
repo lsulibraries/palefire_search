@@ -42,7 +42,7 @@
             {%- endif -%}
             {%- if record.more > 0 %} · {{ '+ @count more'|t({'@count': record.more}) }}{% endif -%}
           </span>
-          <span class="pf-button--secondary">{{ record.copies|length > 1 ? 'Show @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Show @count items'|t({'@count': only.total}) : 'Show location'|t) }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="pf-button--secondary"><span class="pf-index-row__toggle-label"><span class="pf-index-row__when-closed">{{ record.copies|length > 1 ? 'Show @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Show @count items'|t({'@count': only.total}) : 'Show location'|t) }}</span><span class="pf-index-row__when-open">{{ record.copies|length > 1 ? 'Hide @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Hide @count items'|t({'@count': only.total}) : 'Hide location'|t) }}</span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span>
           </span>
         </summary>
         <div class="pf-index-row__copies-table">
