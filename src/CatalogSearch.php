@@ -380,8 +380,8 @@ class CatalogSearch {
    *   title; url, the record's page; and copies, each [library, shelf, type,
    *   call_number, general_call, call_more, first_call, map_library, floor,
    *   map_url, has (lines, less any an item took as its contents),
-   *   available, total, online, reason, due, hold_url, request_url, items,
-   *   items_more]. With more than one physical item on a shelf, items has each
+   *   available, total, online, reason, due, hold_url, request_url, reading_room,
+   *   items, items_more]. reading_room: it's requested to view, not taken away. With more than one physical item on a shelf, items has each
    *   one's [call_number, copy, contents, available, reason, due, request_url],
    *   and those carry the requests. copy is 0 where its call number has only one. NULL with
    *   no copies.
@@ -487,6 +487,7 @@ class CatalogSearch {
         // A hold needs the catalog's own sign-in and page, so this goes there.
         'hold_url' => $physical && !$requested && $holdable ? $url : NULL,
         'request_url' => $physical && $requested && !$listed ? $this->requestUrl($id, $type, $home, $shelf, $first_call, $about) : NULL,
+        'reading_room' => $physical && $requested,
         'items' => $items,
         'items_more' => $listed ? max(0, $found['total'] - self::ITEMS_SHOWN) : 0,
         'has' => $has,
