@@ -383,9 +383,8 @@ class CatalogSearch {
    *   map_url, has (lines, less any an item took as its contents),
    *   available, total, online, reason, due, hold_url, request_url, reading_room,
    *   items, items_more]. reading_room: it's requested to view, not taken away. With more than one physical item on a shelf, items has each
-   *   one's [call_number, copy, contents, available, reason, due, request_url],
-   *   and those carry the requests. copy is 0 where its call number has only one. NULL with
-   *   no copies.
+   *   one's [call_number, contents, available, reason, due, request_url], and
+   *   those carry the requests. NULL with no copies.
    */
   private function holding(array $title, array $libraries, array $locations, array $types): ?array {
     $id = (string) ($title['titleID'] ?? '');
@@ -395,8 +394,7 @@ class CatalogSearch {
     foreach ($title['CallInfo'] ?? [] as $call) {
       $library = (string) ($call['libraryID'] ?? '');
       $number = trim((string) ($call['callNumber'] ?? ''));
-      $on_call = count($call['ItemInfo'] ?? []);
-      foreach (array_values($call['ItemInfo'] ?? []) as $index => $item) {
+      foreach ($call['ItemInfo'] ?? [] as $item) {
         $home = (string) ($item['homeLocationID'] ?? '');
         $current = (string) ($item['currentLocationID'] ?? $home);
         $group = $library . '|' . $home;
@@ -418,7 +416,6 @@ class CatalogSearch {
         }
         $groups[$group]['items'][] = [
           'call_number' => $number,
-          'copy' => $on_call > 1 ? $index + 1 : 0,
           'contents' => [],
           'available' => $here,
           'reason' => $reason,

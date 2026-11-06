@@ -11,7 +11,7 @@
  *   has (lines), available,
  *   total, online, reason, due, hold_url, request_url, reading_room, items,
  *   items_more]. Each
- *   item, on a shelf with more than one: [call_number, copy, contents, available,
+ *   item, on a shelf with more than one: [call_number, contents, available,
  *   reason, due, request_url].
  */
 #}
@@ -97,7 +97,6 @@
                 {% endif %}
                 {# Each box or volume, in the columns above, with its own request. #}
                 {% for item in copy.items %}
-                  {% set item_call = item.copy ? '@call, copy @copy'|t({'@call': item.call_number, '@copy': item.copy}) : item.call_number %}
                   <tr role="row" class="pf-index-row__copy-item">
                     {% if item.contents %}
                       <td role="cell" class="pf-index-row__item-contents" colspan="3" data-label="{{ 'LSU has'|t }}">
@@ -110,10 +109,10 @@
                       <td role="cell"></td>
                       <td role="cell"></td>
                     {% endif %}
-                    <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item_call }}</td>
+                    <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item.call_number }}</td>
                     <td role="cell" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
                     <td role="cell" class="pf-index-row__copy-actions">
-                      {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request to view'|t, item_call) }}{% endif -%}
+                      {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request to view'|t, item.call_number) }}{% endif -%}
                     </td>
                   </tr>
                 {% endfor %}
