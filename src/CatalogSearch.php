@@ -58,6 +58,29 @@ class CatalogSearch {
   private const CLIENT = 'DS_CLIENT';
 
   /**
+   * The Libraries' shelf maps, which the catalog's own pages use, and the names
+   * they know two libraries by.
+   */
+  private const MAPS = 'https://lsu.stackmap.com';
+  private const MAP_LIBRARIES = [
+    'LSU-MAIN' => 'LSU Library',
+    'MUSIC' => 'Carter Music Resources Center',
+  ];
+
+  /**
+   * The most holdings the maps answer about at once.
+   */
+  private const MAPS_AT_ONCE = 20;
+
+  /**
+   * The library whose copies are requested to the reading room, not held, and
+   * its request form. Remote storage has a form of its own.
+   */
+  private const REQUEST_LIBRARY = 'SPEC_COLL';
+  private const REQUEST_FORM = 'https://specialcollections.lib.lsu.edu/Logon/?Action=10&Form=20&';
+  private const REMOTE_STORAGE = 'LAREMOTE';
+
+  /**
    * How long availability is kept, in seconds, and names of places.
    */
   private const HOLDINGS_KEEP = 120;
@@ -239,22 +262,105 @@ class CatalogSearch {
     }
 
     $titles = array_map(static fn(string $id): string => 'titleID=' . $id, $ids);
-    $answer = $this->service('standard/lookupTitleInfo', implode('&', $titles) . '&includeItemInfo=true&includeAvailabilityInfo=true&includeMarcHoldings=true&marcEntryFilter=ALL');
+    $answer = $this->service('standard/lookupTitleInfo', implode('&', $titles) . '&includeItemInfo=true&includeAvailabilityInfo=true&includeMarcHoldings=true&includeCatalogingInfo=true&marcEntryFilter=ALL');
     if ($answer === NULL) {
       return NULL;
     }
 
     $libraries = $this->names('lookupLibraryPolicyList');
     $locations = $this->names('lookupLocationPolicyList');
+    $types = $this->names('lookupItemTypePolicyList');
     $holdings = [];
     foreach ($answer['TitleInfo'] ?? [] as $title) {
-      $holding = $this->holding($title, $libraries, $locations);
+      $holding = $this->holding($title, $libraries, $locations, $types);
       if ($holding) {
         $holdings[$holding['id']] = $holding;
       }
     }
+    $holdings = $this->withMaps($holdings);
     $this->cache->set($key, $holdings, time() + self::HOLDINGS_KEEP);
     return $holdings;
+  }
+
+  /**
+   * Adds the floor and a map link to copies the shelf maps know.
+   *
+   * Without the maps, copies just have neither.
+   */
+  private function withMaps(array $holdings): array {
+    $wanted = [];
+    foreach ($holdings as $id => $holding) {
+      foreach ($holding['copies'] as $index => $copy) {
+        if ($copy['map_library'] !== '' && $copy['first_call'] !== '') {
+          $wanted[] = [$id, $index, $copy];
+        }
+      }
+    }
+    foreach (array_chunk($wanted, self::MAPS_AT_ONCE) as $chunk) {
+      $asked = array_map(static fn(array $one): string => 'holding%5B%5D=' . rawurlencode($one[2]['map_library'] . '$$' . $one[2]['shelf'] . '$$' . $one[2]['first_call']), $chunk);
+      $body = $this->fetch(self::MAPS . '/json/?callback=cb&alt=true&' . implode('&', $asked), self::SERVICE_TIMEOUT);
+      $answer = $body === NULL ? NULL : json_decode(preg_replace('/^[^(]*\(|\)\s*;?\s*$/', '', $body) ?? '', TRUE);
+      if (!is_array($answer)) {
+        break;
+      }
+      foreach ($chunk as $position => [$id, $index, $copy]) {
+        $map = $answer['results'][$position]['maps'][0] ?? NULL;
+        if ($map) {
+          $holdings[$id]['copies'][$index]['floor'] = (string) ($map['floorname'] ?? '');
+          $holdings[$id]['copies'][$index]['map_url'] = ResultText::url(self::MAPS . '/view/?' . http_build_query([
+            'v' => 'pf',
+            'callno' => $copy['first_call'],
+            'location' => $copy['shelf'],
+            'library' => $copy['map_library'],
+            'title' => $holdings[$id]['title'],
+            'tt' => 0,
+          ], '', '&', PHP_QUERY_RFC3986));
+        }
+      }
+    }
+    return $holdings;
+  }
+
+  /**
+   * A copy's address on the Special Collections request form, filled in.
+   */
+  private function requestUrl(string $id, string $type, string $home, string $shelf, string $call, array $about): string {
+    return self::REQUEST_FORM . http_build_query([
+      'Value' => $home === self::REMOTE_STORAGE ? 'GenericRequestAllIronMountain' : 'GenericRequestAll',
+      'ReferenceNumber' => $id,
+      'DocumentType' => $type,
+      'ItemTitle' => $about['title'],
+      'ItemAuthor' => $about['author'],
+      'ItemEdition' => $about['edition'],
+      'CallNumber' => $call,
+      'ItemPublisher' => $about['publisher'],
+      'ItemDate' => $about['date'],
+      'Location' => $shelf,
+      'ItemPlace' => $about['place'],
+      'ItemInfo1' => $about['access'],
+    ], '', '&', PHP_QUERY_RFC3986);
+  }
+
+  /**
+   * What a record says about itself, from its cataloging fields.
+   */
+  private function about(array $title): array {
+    $fields = [];
+    foreach ($title['BibliographicInfo']['MarcEntryInfo'] ?? [] as $entry) {
+      $fields[(string) ($entry['entryID'] ?? '')] ??= trim((string) ($entry['text'] ?? ''));
+    }
+    $published = $fields['264'] ?? $fields['260'] ?? '';
+    [$place, $rest] = array_pad(explode(':', $published, 2), 2, '');
+    $comma = strrpos($rest, ',');
+    return [
+      'title' => rtrim(preg_replace('#\s/\s.*$#u', '', $fields['245'] ?? '') ?? '', ' /,:;='),
+      'author' => rtrim($fields['100'] ?? $fields['110'] ?? '', ' ,'),
+      'edition' => $fields['250'] ?? '',
+      'publisher' => trim($comma === FALSE ? $rest : substr($rest, 0, $comma)),
+      'date' => preg_match('/\d{4}/', $published, $year) ? $year[0] : '',
+      'place' => trim($place),
+      'access' => $fields['506'] ?? '',
+    ];
   }
 
   /**
@@ -266,13 +372,15 @@ class CatalogSearch {
    * @return array|null
    *   id; state: available, online, out or listed (held, with no copy to check);
    *   place, reason and due for the first entry; more, how many other entries;
-   *   url, the record's page; and copies, each [library, shelf, call_number,
-   *   call_more, has, available, total, online, reason, due]. NULL with no copies.
+   *   title; url, the record's page; and copies, each [library, shelf, type,
+   *   call_number, call_more, first_call, map_library, floor, map_url, has,
+   *   available, total, online, reason, due, hold_url, request_url]. NULL with
+   *   no copies.
    */
-  private function holding(array $title, array $libraries, array $locations): ?array {
+  private function holding(array $title, array $libraries, array $locations, array $types): ?array {
     $id = (string) ($title['titleID'] ?? '');
     $groups = [];
-    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'available' => 0, 'total' => 0, 'reason' => '', 'due' => ''];
+    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'type' => '', 'available' => 0, 'total' => 0, 'reason' => '', 'due' => ''];
 
     foreach ($title['CallInfo'] ?? [] as $call) {
       $library = (string) ($call['libraryID'] ?? '');
@@ -283,6 +391,7 @@ class CatalogSearch {
         $group = $library . '|' . $home;
         $groups[$group] ??= $blank;
         $groups[$group]['total']++;
+        $groups[$group]['type'] = $groups[$group]['type'] ?: (string) ($item['itemTypeID'] ?? '');
         if ($number !== '' && $number !== self::ONLINE_CALL_NUMBER) {
           $groups[$group]['calls'][$number] = TRUE;
         }
@@ -322,19 +431,36 @@ class CatalogSearch {
       return NULL;
     }
 
+    $about = $this->about($title);
+    $url = ResultText::url(self::RECORD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id . '/one');
+    $holdable = !empty($title['TitleAvailabilityInfo']['holdable']);
     $copies = [];
     foreach ($groups as $group => $found) {
       [$library, $home] = explode('|', $group, 2);
       $calls = array_map('strval', array_keys($found['calls']));
+      $first_call = $found['marc_call'] ?: ($calls[0] ?? '');
+      $online = $home === self::ONLINE;
+      $type = $types[$found['type']] ?? $found['type'];
+      $shelf = $locations[$home] ?? $home;
+      $physical = !$online && $found['total'] > 0;
+      $requested = $library === self::REQUEST_LIBRARY;
       $copies[] = [
         'library' => $libraries[$library] ?? $library,
-        'shelf' => $locations[$home] ?? $home,
-        'call_number' => $found['marc_call'] ?: ($calls[0] ?? ''),
-        'call_more' => $found['marc_call'] ? 0 : max(0, count($calls) - 1),
+        'shelf' => $shelf,
+        'type' => $type,
+        'call_number' => $found['marc_call'] ?: implode(', ', array_slice($calls, 0, 3)),
+        'call_more' => $found['marc_call'] ? 0 : max(0, count($calls) - 3),
+        'first_call' => $first_call,
+        'map_library' => $physical && !$requested ? (self::MAP_LIBRARIES[$library] ?? ($libraries[$library] ?? '')) : '',
+        'floor' => '',
+        'map_url' => NULL,
+        // A hold needs the catalog's own sign-in and page, so this goes there.
+        'hold_url' => $physical && !$requested && $holdable ? $url : NULL,
+        'request_url' => $physical && $requested ? $this->requestUrl($id, $type, $home, $shelf, $first_call, $about) : NULL,
         'has' => implode('; ', $found['has']),
         'available' => $found['available'],
         'total' => $found['total'],
-        'online' => $home === self::ONLINE,
+        'online' => $online,
         'reason' => $found['reason'],
         'due' => $found['due'],
       ];
@@ -355,7 +481,8 @@ class CatalogSearch {
       'reason' => $first['reason'],
       'due' => $first['due'],
       'more' => count($copies) - 1,
-      'url' => ResultText::url(self::RECORD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id . '/one'),
+      'title' => $about['title'],
+      'url' => $url,
       'copies' => $copies,
     ];
   }
@@ -422,7 +549,10 @@ class CatalogSearch {
     }
     $limits = '';
     foreach ($filters['refine'] ?? [] as $option) {
-      [$filter, , $value] = self::FILTERS[$option] ?? ['', '', ''];
+      if (!isset(self::FILTERS[$option])) {
+        continue;
+      }
+      [$filter, , $value] = self::FILTERS[$option];
       if ($filter === 'LIBRARY') {
         $limits .= '&libraryFilter=' . rawurlencode(substr($value, strpos($value, ':') + 1));
       }

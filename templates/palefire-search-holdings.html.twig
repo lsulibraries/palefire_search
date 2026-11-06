@@ -7,11 +7,12 @@
  * Variables:
  * - records: each [id, state, place, reason, due, more, url, copies].
  *   state: available, online, out or listed. Each copy is one library and shelf:
- *   [library, shelf, call_number, call_more, has, available, total, online,
- *   reason, due].
+ *   [library, shelf, type, call_number, call_more, floor, map_url, has, available,
+ *   total, online, reason, due, hold_url, request_url].
  */
 #}
 {% macro why(entry) %}{{ entry.reason ?: 'Ask at the library'|t }}{% if entry.due %}, {{ 'due @date'|t({'@date': entry.due}) }}{% endif %}{% endmacro %}
+{% macro out(url, label) %}<a href="{{ url }}">{{ label }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>{% endmacro %}
 {% import _self as holdings %}
 {% for record in records %}
   <div data-pf-index-holdings-for="{{ record.id }}">
@@ -41,6 +42,8 @@
                 <dl>
                   <div><dt>{{ 'Library'|t }}</dt><dd>{{ copy.library }}</dd></div>
                   <div><dt>{{ 'Shelf location'|t }}</dt><dd>{{ copy.shelf }}</dd></div>
+                  {% if copy.floor %}<div><dt>{{ 'Floor'|t }}</dt><dd>{{ copy.floor }}</dd></div>{% endif %}
+                  {% if copy.type %}<div><dt>{{ 'Material type'|t }}</dt><dd>{{ copy.type }}</dd></div>{% endif %}
                   {% if copy.call_number %}<div><dt>{{ 'Call number'|t }}</dt><dd>{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</dd></div>{% endif %}
                   {% if copy.has %}<div><dt>{{ 'LSU has'|t }}</dt><dd>{{ copy.has }}</dd></div>{% endif %}
                   {% if copy.total %}
@@ -55,10 +58,17 @@
                     </dd></div>
                   {% endif %}
                 </dl>
+                {% if copy.map_url or copy.hold_url or copy.request_url %}
+                  <p class="pf-index-row__links pf-index-row__copy-links">
+                    {% if copy.map_url %}{{ holdings.out(copy.map_url, 'Find in the Library'|t) }}{% endif %}
+                    {% if copy.hold_url %}{{ holdings.out(copy.hold_url, 'Place hold'|t) }}{% endif %}
+                    {% if copy.request_url %}{{ holdings.out(copy.request_url, 'Request item'|t) }}{% endif %}
+                  </p>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>
-          <p class="pf-index-row__links"><a href="{{ record.url }}">{{ 'Full record'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
+          <p class="pf-index-row__links">{{ holdings.out(record.url, 'Full record'|t) }}</p>
         </div>
       </details>
     {% endif %}

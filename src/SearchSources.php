@@ -76,9 +76,11 @@ final class SearchSources {
       'special' => [
         'label' => 'Special Collections',
         'layout' => 'merged',
-        'sources' => ['archive', 'news_special'],
+        'sources' => ['archive', 'news_special', 'catalog'],
         // Record type is this mode's main filter, so it's always offered.
         'refine_sources' => ['archive'],
+        // Filters already chosen when a source is, which can still be changed.
+        'refine_defaults' => ['catalog' => ['library_special']],
         'links' => [],
       ],
     ];

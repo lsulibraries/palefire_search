@@ -54,6 +54,11 @@ class SearchController extends ControllerBase {
    */
   private const HOLDINGS_MAX_AGE = 120;
 
+  /**
+   * The filter value that says no to a filter's default.
+   */
+  private const ANY = 'any';
+
   public function __construct(
     private readonly LocalSearch $local,
     private readonly ExternalSearch $external,
@@ -146,7 +151,9 @@ class SearchController extends ControllerBase {
     }
 
     // The results first: they record counts the filters can then reuse.
-    if (count($selected) === 1 || $mode['layout'] === 'merged') {
+    // A merged list can only merge local sources, so an outside one gets a section.
+    $outside = array_filter($selected, static fn(string $key): bool => SearchSources::get($key)['kind'] === 'external');
+    if (count($selected) === 1 || ($mode['layout'] === 'merged' && !$outside)) {
       [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
       $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
       $build['#total'] = $total;
@@ -162,7 +169,7 @@ class SearchController extends ControllerBase {
     $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $years, $query);
     $build['#chips'] = $this->chips($mode_key, $query, $chosen, $refines, $years, $sort);
     $build['#clear_url'] = $this->address($mode_key, $query);
-    $build['#selected_count'] = count($chosen) + array_sum(array_map('count', $refines)) + ($years ? 1 : 0);
+    $build['#selected_count'] = count($chosen) + array_sum(array_map(static fn(array $options): int => count(array_diff($options, [self::ANY])), $refines)) + ($years ? 1 : 0);
     return $build;
   }
 
@@ -234,17 +241,48 @@ class SearchController extends ControllerBase {
     $refines = [];
     foreach (array_filter((array) ($parameters['refine'] ?? []), 'is_string') as $value) {
       [$key, $option] = array_pad(explode(':', $value, 2), 2, '');
-      if (in_array($key, $mode['sources'], TRUE) && isset(SearchSources::get($key)['refine_options'][$option])) {
+      $allowed = isset(SearchSources::get($key)['refine_options'][$option]) || ($option === self::ANY && isset($mode['refine_defaults'][$key]));
+      if (in_array($key, $mode['sources'], TRUE) && $allowed) {
         $refines[$key][] = $option;
       }
     }
     foreach ($refines as $key => $options) {
       $definition = SearchSources::get($key);
       if (!empty($definition['refine_single'])) {
-        $refines[$key] = $this->oneToAGroup($options, $definition['refine_groups']);
+        $refines[$key] = [...$this->oneToAGroup($options, $definition['refine_groups']), ...array_intersect($options, [self::ANY])];
       }
     }
+    foreach ($mode['refine_defaults'] ?? [] as $key => $defaults) {
+      $refines = $this->withDefaults($refines, $key, $defaults, in_array($key, $chosen, TRUE));
+    }
     return [$chosen, array_map('array_unique', $refines)];
+  }
+
+  /**
+   * A source's filters, with its defaults where nothing else is chosen.
+   *
+   * The form sends a filter's default back along with everything else. That says
+   * nothing without its source ticked, or a source could never be unticked.
+   */
+  private function withDefaults(array $refines, string $key, array $defaults, bool $chosen): array {
+    $options = $refines[$key] ?? [];
+    if (!$chosen) {
+      if (!array_diff($options, [...$defaults, self::ANY])) {
+        unset($refines[$key]);
+      }
+      return $refines;
+    }
+    if (in_array(self::ANY, $options, TRUE)) {
+      return $refines;
+    }
+    foreach ($defaults as $default) {
+      foreach (SearchSources::get($key)['refine_groups'] as $values) {
+        if (in_array($default, $values, TRUE) && !array_intersect($values, $options)) {
+          $refines[$key][] = $default;
+        }
+      }
+    }
+    return $refines;
   }
 
   /**
@@ -430,7 +468,7 @@ class SearchController extends ControllerBase {
         continue;
       }
       if (isset($definition['refine_groups'])) {
-        array_push($groups, ...$this->serviceFilters($key, $definition, $refines, $years));
+        array_push($groups, ...$this->serviceFilters($key, $definition, $refines, $years, $mode['refine_defaults'][$key] ?? []));
         continue;
       }
       $options = [];
@@ -453,7 +491,7 @@ class SearchController extends ControllerBase {
    * An outside service's filter groups. Its search has just run, so its counts
    * cost nothing more. An option the service doesn't count has no number.
    */
-  private function serviceFilters(string $key, array $definition, array $refines, array $years): array {
+  private function serviceFilters(string $key, array $definition, array $refines, array $years, array $defaults = []): array {
     $counts = $this->external->counts($definition);
     $single = !empty($definition['refine_single']);
     $groups = [];
@@ -468,10 +506,11 @@ class SearchController extends ControllerBase {
       }
       if ($options && $single) {
         // Round buttons, which need a way back to no choice and a name of their
-        // own in each filter. The empty value is ignored when it's read.
+        // own in each filter. The empty value is ignored when it's read. A filter
+        // with a default has to say Any out loud, or the default would come back.
         array_unshift($options, [
           'label' => $this->t('Any'),
-          'value' => '',
+          'value' => array_intersect($values, $defaults) ? $key . ':' . self::ANY : '',
           'count' => NULL,
           'checked' => !array_intersect($values, $refines[$key] ?? []),
         ]);
@@ -500,10 +539,17 @@ class SearchController extends ControllerBase {
         'url' => $this->address($mode_key, $query, array_values(array_diff($chosen, [$key])), $without, $sort, !empty(SearchSources::get($key)['year_filter']) ? [] : $years),
       ];
     }
+    $defaults = SearchSources::modes()[$mode_key]['refine_defaults'] ?? [];
     foreach ($refines as $key => $options) {
       foreach ($options as $option) {
+        if ($option === self::ANY) {
+          continue;
+        }
         $without = $refines;
         $without[$key] = array_values(array_diff($options, [$option]));
+        if (in_array($option, $defaults[$key] ?? [], TRUE)) {
+          $without[$key][] = self::ANY;
+        }
         $chips[] = [
           'label' => SearchSources::get($key)['refine_options'][$option],
           'url' => $this->address($mode_key, $query, $chosen, array_filter($without), $sort, $years),

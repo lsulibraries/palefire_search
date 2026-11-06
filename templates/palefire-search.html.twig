@@ -162,7 +162,7 @@
         {% endif %}
 
         {% for section in sections %}
-          <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" aria-labelledby="pf-index-{{ section.key }}">
+          <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" data-pf-index-source="{{ section.key }}" aria-labelledby="pf-index-{{ section.key }}">
             <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{% if section.about %}<button class="pf-term" type="button" popovertarget="pf-index-about-{{ section.key }}" style="anchor-name:--pf-index-about-{{ section.key }}">{{ section.label }}</button>{% else %}{{ section.label }}{% endif %}</h2>{% if section.about %}<div class="pf-term__card" id="pf-index-about-{{ section.key }}" popover style="position-anchor:--pf-index-about-{{ section.key }}"><p class="pf-term__name">{{ section.label }}</p><p class="pf-term__definition">{{ section.about }}</p></div>{% endif %}{% if section.via %}{{ index.via(section.via) }}{% endif %}</div>
             {% if section.late_url %}
               <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">

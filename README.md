@@ -12,7 +12,8 @@ The Index: the search page at `/v2/search`, in the Palefire theme.
 The Catalog uses two public services together. Its results feed chooses and
 orders the rows, because only the feed ranks by relevance. Its web service then
 adds each row's copies and availability, from `/v2/search/holdings`, which loads
-after the rows and is kept for two minutes. If the feed goes down, the web service
+after the rows and is kept for two minutes. Copies link to the shelf map, a hold
+on the catalog's record page, or the Special Collections request form. If the feed goes down, the web service
 answers the search too, newest first and saying so. It has no working Type or Year
 filter, so a search using one shows the failure message instead.
 
