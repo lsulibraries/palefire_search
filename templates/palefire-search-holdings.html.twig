@@ -7,17 +7,22 @@
  * Variables:
  * - records: each [id, state, place, reason, due, more, url, copies].
  *   state: available, online, out or listed. Each copy is one library and shelf:
- *   [library, shelf, type, call_number, call_more, floor, map_url, has, available,
+ *   [library, shelf, type, call_number, general_call, call_more, floor, map_url,
+ *   has (lines), available,
  *   total, online, reason, due, hold_url, request_url, items, items_more]. Each
- *   item, on a shelf with more than one: [call_number, copy, available, reason,
- *   due, request_url].
+ *   item, on a shelf with more than one: [call_number, copy, contents, available,
+ *   reason, due, request_url].
  */
 #}
 {% macro why(entry) %}{{ entry.reason ?: 'Ask at the library'|t }}{% if entry.due %}, {{ 'due @date'|t({'@date': entry.due}) }}{% endif %}{% endmacro %}
 {% macro out(url, label, about) %}<a class="pf-button--secondary" href="{{ url }}">{{ label }}{% if about %}<span class="visually-hidden">: {{ about }}</span>{% endif %}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>{% endmacro %}
 {% import _self as holdings %}
 {% for record in records %}
-  <div data-pf-index-holdings-for="{{ record.id }}">
+  {# One shelf of numbered items: the list's row names the first item's call
+     number, and index-search.js swaps in the one for them all. #}
+  {% set only = record.copies|length == 1 ? record.copies|first %}
+  {% set whole_call = only and only.items and only.general_call and only.general_call != (only.items|first).call_number %}
+  <div data-pf-index-holdings-for="{{ record.id }}"{% if whole_call %} data-pf-index-call="{{ only.general_call }}" data-pf-index-call-first="{{ (only.items|first).call_number }}"{% endif %}>
     {% if record.state == 'online' and record.more == 0 %}
       <p class="pf-index-row__holdings-line"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
     {% else %}
@@ -36,7 +41,7 @@
             {%- endif -%}
             {%- if record.more > 0 %} · {{ '+ @count more'|t({'@count': record.more}) }}{% endif -%}
           </span>
-          <span class="pf-button--secondary">{{ record.copies|length > 1 ? 'Show @count locations'|t({'@count': record.copies|length}) : 'Show location'|t }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="pf-button--secondary">{{ record.copies|length > 1 ? 'Show @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Show @count items'|t({'@count': only.total}) : 'Show location'|t) }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span>
           </span>
         </summary>
         <div class="pf-index-row__copies-table">
@@ -80,17 +85,25 @@
                    catalog writes it with no space after a comma, so it can't wrap. #}
                 {% if copy.has %}
                   <tr role="row" class="pf-index-row__copy-has">
-                    <td role="cell" colspan="6" data-label="{{ 'LSU has'|t }}"><span>{{ copy.has|replace({',': ', ', ', ': ', '}) }}</span></td>
+                    <td role="cell" colspan="6" data-label="{{ 'LSU has'|t }}">
+                      {%- for line in copy.has -%}
+                        <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
+                      {%- endfor -%}
+                    </td>
                   </tr>
                 {% endif %}
                 {# Each box or volume, in the columns above, with its own request. #}
                 {% for item in copy.items %}
                   {% set item_call = item.copy ? '@call, copy @copy'|t({'@call': item.call_number, '@copy': item.copy}) : item.call_number %}
                   <tr role="row" class="pf-index-row__copy-item">
-                    <td role="cell"></td>
-                    <td role="cell"></td>
-                    <td role="cell"></td>
-                    <td role="cell" data-label="{{ 'Call number'|t }}">{{ item_call }}</td>
+                    {% if item.contents %}
+                      <td role="cell" class="pf-index-row__item-contents" colspan="3" data-label="{{ 'Contents'|t }}"><span>{{ item.contents|replace({',': ', ', ', ': ', '}) }}</span></td>
+                    {% else %}
+                      <td role="cell"></td>
+                      <td role="cell"></td>
+                      <td role="cell"></td>
+                    {% endif %}
+                    <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item_call }}</td>
                     <td role="cell" data-label="{{ 'Status'|t }}">{{ item.available ? 'Available'|t : holdings.why(item) }}</td>
                     <td role="cell" class="pf-index-row__copy-actions">
                       {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request item'|t, item_call) }}{% endif -%}
