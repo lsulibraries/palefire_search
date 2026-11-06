@@ -94,6 +94,11 @@ class CatalogSearch {
   private const SERVICE_TIMEOUT = 5;
 
   /**
+   * The most items listed for one shelf. The full record has the rest.
+   */
+  private const ITEMS_SHOWN = 20;
+
+  /**
    * The place an online copy lives, and the call number it has there.
    */
   private const ONLINE = 'ONLINE';
@@ -374,18 +379,22 @@ class CatalogSearch {
    *   place, reason and due for the first entry; more, how many other entries;
    *   title; url, the record's page; and copies, each [library, shelf, type,
    *   call_number, call_more, first_call, map_library, floor, map_url, has,
-   *   available, total, online, reason, due, hold_url, request_url]. NULL with
+   *   available, total, online, reason, due, hold_url, request_url, items,
+   *   items_more]. With more than one physical item on a shelf, items has each
+   *   one's [call_number, copy, available, reason, due, request_url], and those
+   *   carry the requests. copy is 0 where its call number has only one. NULL with
    *   no copies.
    */
   private function holding(array $title, array $libraries, array $locations, array $types): ?array {
     $id = (string) ($title['titleID'] ?? '');
     $groups = [];
-    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'type' => '', 'available' => 0, 'total' => 0, 'reason' => '', 'due' => ''];
+    $blank = ['calls' => [], 'marc_call' => '', 'has' => [], 'type' => '', 'available' => 0, 'total' => 0, 'reason' => '', 'due' => '', 'items' => []];
 
     foreach ($title['CallInfo'] ?? [] as $call) {
       $library = (string) ($call['libraryID'] ?? '');
       $number = trim((string) ($call['callNumber'] ?? ''));
-      foreach ($call['ItemInfo'] ?? [] as $item) {
+      $on_call = count($call['ItemInfo'] ?? []);
+      foreach (array_values($call['ItemInfo'] ?? []) as $index => $item) {
         $home = (string) ($item['homeLocationID'] ?? '');
         $current = (string) ($item['currentLocationID'] ?? $home);
         $group = $library . '|' . $home;
@@ -395,13 +404,23 @@ class CatalogSearch {
         if ($number !== '' && $number !== self::ONLINE_CALL_NUMBER) {
           $groups[$group]['calls'][$number] = TRUE;
         }
-        if ($current === $home && empty($item['dueDate']) && !in_array($current, self::AWAY, TRUE)) {
+        $here = $current === $home && empty($item['dueDate']) && !in_array($current, self::AWAY, TRUE);
+        $reason = $here ? '' : $this->reason($current, $locations);
+        $due = $here || empty($item['dueDate']) ? '' : date('M j, Y', (int) ((int) $item['dueDate'] / 1000));
+        if ($here) {
           $groups[$group]['available']++;
         }
         elseif ($groups[$group]['reason'] === '') {
-          $groups[$group]['reason'] = $this->reason($current, $locations);
-          $groups[$group]['due'] = empty($item['dueDate']) ? '' : date('M j, Y', (int) ((int) $item['dueDate'] / 1000));
+          $groups[$group]['reason'] = $reason;
+          $groups[$group]['due'] = $due;
         }
+        $groups[$group]['items'][] = [
+          'call_number' => $number,
+          'copy' => $on_call > 1 ? $index + 1 : 0,
+          'available' => $here,
+          'reason' => $reason,
+          'due' => $due,
+        ];
       }
     }
 
@@ -444,6 +463,13 @@ class CatalogSearch {
       $shelf = $locations[$home] ?? $home;
       $physical = !$online && $found['total'] > 0;
       $requested = $library === self::REQUEST_LIBRARY;
+      $listed = $physical && $found['total'] > 1;
+      $items = [];
+      foreach ($listed ? array_slice($found['items'], 0, self::ITEMS_SHOWN) : [] as $item) {
+        // A request names the box or volume wanted, not the whole run.
+        $item['request_url'] = $requested ? $this->requestUrl($id, $type, $home, $shelf, $item['call_number'] ?: $first_call, $about) : NULL;
+        $items[] = $item;
+      }
       $copies[] = [
         'library' => $libraries[$library] ?? $library,
         'shelf' => $shelf,
@@ -456,7 +482,9 @@ class CatalogSearch {
         'map_url' => NULL,
         // A hold needs the catalog's own sign-in and page, so this goes there.
         'hold_url' => $physical && !$requested && $holdable ? $url : NULL,
-        'request_url' => $physical && $requested ? $this->requestUrl($id, $type, $home, $shelf, $first_call, $about) : NULL,
+        'request_url' => $physical && $requested && !$listed ? $this->requestUrl($id, $type, $home, $shelf, $first_call, $about) : NULL,
+        'items' => $items,
+        'items_more' => $listed ? max(0, $found['total'] - self::ITEMS_SHOWN) : 0,
         'has' => implode('; ', $found['has']),
         'available' => $found['available'],
         'total' => $found['total'],
