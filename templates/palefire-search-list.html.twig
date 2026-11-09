@@ -7,7 +7,7 @@
  * Variables:
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
- * - items: [title, url, external, summary, meta, source, type, full_text_url,
+ * - items: [title, url, external, summary, excerpt, meta, source, type, full_text_url,
  *   image, image_url, login, holdings_id]. holdings_id holds a place for where
  *   the record's copies are, which loads after the list. type says what the
  *   record is, such as Book. login
@@ -61,6 +61,11 @@
           {% endif %}
           {% if item.summary|render %}
             <p class="pf-index-row__summary">{{ item.summary }}</p>
+          {% endif %}
+          {# Words around the match inside the record itself, so it's plain the
+             search reads the whole PDF, not only the description. #}
+          {% if item.excerpt|render %}
+            <p class="pf-index-row__excerpt"><span class="pf-index-row__excerpt-label">{{ item.url ends with '.pdf' ? 'Found in the PDF'|t : 'Found in the full text'|t }}</span> {{ item.excerpt }}</p>
           {% endif %}
           {% if item.full_text_url %}
             <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
