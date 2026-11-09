@@ -7,8 +7,9 @@
  * Variables:
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
- * - items: [title, url, external, summary, excerpt, meta, source, type, full_text_url,
- *   image, image_url, login, holdings_id]. holdings_id holds a place for where
+ * - items: [title, url, external, summary, excerpt, pdf, meta, source, type, full_text_url,
+ *   image, image_url, login, holdings_id]. pdf is [pages, size] for a PDF on this site;
+ *   pages is empty when the file couldn't be read for them. holdings_id holds a place for where
  *   the record's copies are, which loads after the list. type says what the
  *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
@@ -68,9 +69,14 @@
             <p class="pf-index-row__excerpt"><span class="pf-index-row__excerpt-label">{{ item.url ends with '.pdf' ? 'Found in the PDF'|t : 'Found in the full text'|t }}</span> {{ item.excerpt }}</p>
           {% endif %}
           {# A record that is a PDF: a button as clear as a catalog row's Show
-             location. A new tab, so the results stay where they were. #}
+             location. A new tab, so the results stay where they were. Its length
+             beside it, so it's plain what opening it means. #}
           {% if item.url ends with '.pdf' %}
-            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ item.url }}" target="_blank" data-no-swup>{{ 'Open PDF'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></a></p>
+            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ item.url }}" target="_blank" data-no-swup>{{ 'Open PDF'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></a>
+              {%- if item.pdf.size %}
+                {% set pages = item.pdf.pages %}
+                <span class="pf-index-row__pdf">{% if pages %}{% trans %}{{ pages }} page{% plural pages %}{{ pages }} pages{% endtrans %} · {% endif %}{{ item.pdf.size }}</span>
+              {%- endif %}</p>
           {% endif %}
           {% if item.full_text_url %}
             <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>

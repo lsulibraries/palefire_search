@@ -26,7 +26,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  *
  * Filters: options within a filter widen the results, and different filters
  * narrow them. Choosing a record type limits the results to that record type's
- * source, so "Oral History" never leaves unrelated news in the list.
+ * source, so "Oral histories" never leaves unrelated news in the list.
  */
 class SearchController extends ControllerBase {
 
@@ -510,7 +510,16 @@ class SearchController extends ControllerBase {
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
         $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
-      if ($options) {
+      if ($options && !empty($definition['refine_nested'])) {
+        // Under its source's own option, as a narrower choice of it.
+        foreach ($groups[0]['options'] as &$source) {
+          if ($source['value'] === $key) {
+            $source['sub'] = ['name' => 'refine[]', 'options' => $options];
+          }
+        }
+        unset($source);
+      }
+      elseif ($options) {
         $groups[] = ['title' => $this->t($definition['refine_label']), 'name' => 'refine[]', 'options' => $options];
       }
     }

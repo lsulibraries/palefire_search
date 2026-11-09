@@ -133,6 +133,15 @@
                   <span class="pf-index__option-label">{{ option.label }}</span>
                   {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}</span>{% endif %}
                 </label>
+                {# A narrower choice of this source, set in under it. Its name says
+                   which source it narrows, for anyone not seeing the indent. #}
+                {% for sub in option.sub.options ?? [] %}
+                  <label class="pf-index__option pf-index__option--sub">
+                    <input type="checkbox" name="{{ option.sub.name }}" value="{{ sub.value }}"{% if sub.checked %} checked{% endif %}{% if sub.disabled %} disabled{% endif %}>
+                    <span class="pf-index__option-label">{{ sub.label }}<span class="visually-hidden"> {{ '(in @source)'|t({'@source': option.label}) }}</span></span>
+                    {% if sub.count is not null %}<span class="pf-index__count">{{ sub.count|number_format }}</span>{% endif %}
+                  </label>
+                {% endfor %}
               {% endfor %}
             </fieldset>
           {% endfor %}

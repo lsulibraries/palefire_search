@@ -55,15 +55,17 @@ class LocalSearch {
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly EntityRepositoryInterface $entityRepository,
     private readonly DateFormatterInterface $dateFormatter,
+    private readonly PdfFacts $pdfFacts,
   ) {}
 
   /**
    * One page of results across these sources.
    *
    * @return array
-   *   total, and items: [title, url, external, summary, excerpt, meta, source,
-   *   image, image_url, details]. details is a list with one entry per copy of
-   *   an E-Textbook. excerpt: an archive record's words around the match.
+   *   total, and items: [title, url, external, summary, excerpt, pdf, meta,
+   *   source, image, image_url, details]. details is a list with one entry per copy of
+   *   an E-Textbook. excerpt: an archive record's words around the match. pdf: [pages, size]
+   *   when an archive record links to a PDF on this site.
    */
   public function search(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
     if ($this->listsBooks($source_keys)) {
@@ -374,6 +376,9 @@ class LocalSearch {
     if ($refine && isset($definition['refine_field'])) {
       $group->addCondition($definition['refine_field'], array_map('strval', $refine), 'IN');
     }
+    if (isset($definition['record_types'])) {
+      $group->addCondition($definition['refine_field'], $definition['record_types'], 'IN');
+    }
 
     if (isset($definition['not_categories'])) {
       // Only Tiles have a category, so the exclusion can't apply to other
@@ -425,7 +430,7 @@ class LocalSearch {
       'archive_record' => [
         $node->label(),
         $this->text($node, 'field_summary') ?: $this->text($node, 'field_description'),
-        SearchSources::get('archive')['refine_options'][$this->text($node, 'field_record_type')] ?? '',
+        SearchSources::get('archive')['record_labels'][$this->text($node, 'field_record_type')] ?? '',
         $this->linkField($node, ['field_record_url']),
       ],
       'article' => [
@@ -461,6 +466,7 @@ class LocalSearch {
       'external' => (bool) preg_match('#^https?://(?!lib\.lsu\.edu)#i', $url),
       'summary' => ResultText::highlight(ResultText::summary($summary), $words),
       'excerpt' => $node->bundle() === 'archive_record' ? $this->excerpt($excerpt, $words) : '',
+      'pdf' => $node->bundle() === 'archive_record' ? $this->pdfFacts->forUrl($url) : [],
       'meta' => ResultText::clean($meta),
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,

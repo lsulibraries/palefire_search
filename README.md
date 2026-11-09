@@ -3,8 +3,10 @@
 The Index: the search page at `/v2/search`, in the Palefire theme.
 
 - **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
-  E-Textbooks, Archive Records): direct Search API queries on the
-  `bento_search` index, matching all words.
+  E-Textbooks, PDF Finding Aids): direct Search API queries on the
+  `bento_search` index, matching all words. PDF Finding Aids searches only
+  finding aids and oral history abstracts, with Oral histories as a filter
+  under it.
 - **External sources** (Discovery, Catalog, Research Guides): each from its own
   service. Their sections load after the page.
 - **Links only** (Scholarly Repository).

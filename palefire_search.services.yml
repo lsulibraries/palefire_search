@@ -1,7 +1,10 @@
 services:
   palefire_search.local:
     class: Drupal\palefire_search\LocalSearch
-    arguments: ['@entity_type.manager', '@entity.repository', '@date.formatter']
+    arguments: ['@entity_type.manager', '@entity.repository', '@date.formatter', '@palefire_search.pdf_facts']
+  palefire_search.pdf_facts:
+    class: Drupal\palefire_search\PdfFacts
+    arguments: ['@cache.default', '%app.root%']
   palefire_search.external:
     class: Drupal\palefire_search\ExternalSearch
     arguments: ['@palefire_search.discovery', '@palefire_search.catalog']

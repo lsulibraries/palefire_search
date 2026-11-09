@@ -78,7 +78,7 @@ final class SearchSources {
         // hold an outside source. list_label names the list under it.
         'lead' => ['catalog'],
         'list_label' => 'Archives and News',
-        // Record type is this mode's main filter, so it's always offered.
+        // Oral histories is this mode's main filter, so it's always offered.
         'refine_sources' => ['archive'],
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
@@ -224,22 +224,25 @@ final class SearchSources {
         'types' => ['e_books'],
       ],
       'archive' => [
-        'label' => 'Archive Records',
-        'about' => 'Descriptions of Special Collections materials, such as finding aids, oral histories, manuscripts and University Archives records.',
+        'label' => 'PDF Finding Aids',
+        'about' => 'Special Collections finding aids and oral history abstracts, searched through the full text of each PDF.',
         'kind' => 'local',
         'types' => ['archive_record'],
+        // Only these record types are searched: the PDFs. The rest of the
+        // archive records, such as Breaux Data, aren't part of the Index.
+        'record_types' => ['finding_aid', 'oral_history'],
+        // What each record type is called on its result.
+        'record_labels' => [
+          'finding_aid' => 'Finding aid',
+          'oral_history' => 'Oral history',
+        ],
         'refine_field' => 'field_record_type',
         'refine_label' => 'Record type',
         'refine_options' => [
-          'finding_aid' => 'Finding Aids',
-          'breaux_data' => 'Breaux Data',
-          'oral_history' => 'Oral History',
-          'louisiana_folklife' => 'Louisiana Folklife',
-          'university_archives_record_group' => 'University Archives Record Group',
-          'university_archives_finding_aids' => 'University Archives Finding Aids',
-          'manuscript_collections_descriptions' => 'Manuscript Collections',
-          'louisiana_newspapers' => 'Louisiana Newspapers',
+          'oral_history' => 'Oral histories',
         ],
+        // Its one filter sits under the source itself, not in a group of its own.
+        'refine_nested' => TRUE,
       ],
       'pages' => [
         'label' => 'Pages',
