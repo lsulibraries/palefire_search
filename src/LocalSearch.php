@@ -51,6 +51,11 @@ class LocalSearch {
    */
   private array $counts = [];
 
+  /**
+   * Search API item IDs of records left out for having no PDF, by type list.
+   */
+  private array $withoutUrl = [];
+
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly EntityRepositoryInterface $entityRepository,
@@ -368,6 +373,28 @@ class LocalSearch {
   }
 
   /**
+   * Archive records of these types with no PDF link, as Search API item IDs.
+   *
+   * Asked of the database, so it holds whether or not the link is in the
+   * index, and a record drops out as soon as it's saved without one.
+   */
+  private function withoutUrl(array $types): array {
+    $key = implode(',', $types);
+    if (!isset($this->withoutUrl[$key])) {
+      $rows = $this->entityTypeManager->getStorage('node')->getAggregateQuery()
+        ->accessCheck(FALSE)
+        ->condition('type', 'archive_record')
+        ->condition('field_record_type', $types, 'IN')
+        ->notExists('field_record_url')
+        ->groupBy('nid')
+        ->groupBy('langcode')
+        ->execute();
+      $this->withoutUrl[$key] = array_map(static fn(array $row): string => 'entity:node/' . $row['nid'] . ':' . $row['langcode'], $rows);
+    }
+    return $this->withoutUrl[$key];
+  }
+
+  /**
    * One source's filters.
    */
   private function sourceConditions(QueryInterface $search, array $definition, array $refine): ConditionGroupInterface {
@@ -378,6 +405,9 @@ class LocalSearch {
     }
     if (isset($definition['record_types'])) {
       $group->addCondition($definition['refine_field'], $definition['record_types'], 'IN');
+    }
+    if (!empty($definition['needs_url']) && ($missing = $this->withoutUrl($definition['needs_url']))) {
+      $group->addCondition('search_api_id', $missing, 'NOT IN');
     }
 
     if (isset($definition['not_categories'])) {

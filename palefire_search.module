@@ -35,6 +35,7 @@ function palefire_search_theme(): array {
         'list_source' => NULL,
         'via' => NULL,
         'notice' => NULL,
+        'answer' => NULL,
         'action' => '',
       ],
     ],
@@ -47,6 +48,7 @@ function palefire_search_theme(): array {
       'variables' => [
         'label' => '',
         'total' => NULL,
+        'count' => '',
         'items' => [],
         'failed' => FALSE,
         'simplified' => NULL,

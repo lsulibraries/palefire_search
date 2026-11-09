@@ -7,6 +7,7 @@
  * Variables:
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
+ * - count: total as words ("300+ results"), empty when it's NULL.
  * - items: [title, url, external, summary, excerpt, pdf, meta, source, type, full_text_url,
  *   image, image_url, login, holdings_id]. pdf is [pages, size] for a PDF on this site;
  *   pages is empty when the file couldn't be read for them. holdings_id holds a place for where
@@ -28,7 +29,7 @@
  * - pager: a pager, or NULL.
  */
 #}
-<div class="pf-index-list" data-pf-index-total="{{ total }}">
+<div class="pf-index-list" data-pf-index-total="{{ total }}" data-pf-index-count="{{ count }}">
   {% if simplified %}
     <p class="pf-index-list__status">{{ '@label can’t use AND, OR or NOT, so it searched for: @terms'|t({'@label': label, '@terms': simplified}) }}</p>
   {% endif %}

@@ -13,6 +13,7 @@
  * - action: the forms' address.
  * - modes: [label, url, current], the tabs.
  * - filters: [title, name, single, about, options: [label, value, count, checked]].
+ *   The Source group also has all: [label, checked], its All sources row.
  *   single: one choice, as round buttons. about: [label, text], what each source
  *   is, opened from the group's title. count is
  *   NULL for a source that's only counted by searching it. A group with years
@@ -26,7 +27,10 @@
  * - links: [label, url], searches elsewhere.
  * - via: the service behind a chosen source: [label, url, also: [label, url]].
  *   A section can have its own.
- * - sections: [key, label, list or late_url and full_url].
+ * - sections: [key, label, about, via, count, list or late_url and full_url].
+ *   count is how many it found, as words ("20 results"); empty on a late one.
+ * - answer: a short answer above the results, or NULL: [key, title,
+ *   locations [lid, name], links [label, url, external]].
  * - list: one list, when a source is chosen or the mode is merged.
  * - list_title: the list's visible name, when sections lead above it. It then
  *   carries its own total and sort, which don't speak for those sections.
@@ -127,6 +131,15 @@
                   </div>
                 </div>
               {% endif %}
+              {# Checked while no source is: every one is searched. Not a
+                 filter itself: index-search.js clears the sources when it's
+                 chosen, and the address leaves it out. #}
+              {% if group.all is defined %}
+                <label class="pf-index__option pf-index__option--all">
+                  <input type="checkbox" name="all" value="1"{% if group.all.checked %} checked{% endif %} data-pf-index-all>
+                  <span class="pf-index__option-label">{{ group.all.label }}</span>
+                </label>
+              {% endif %}
               {% for option in group.options %}
                 <label class="pf-index__option">
                   <input type="{{ group.single ? 'radio' : 'checkbox' }}" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}{% if option.disabled %} disabled{% endif %}>
@@ -177,9 +190,48 @@
           </div>
         {% endif %}
 
+        {# A short answer first, for a search about a service. Today's hours
+           are filled in by the theme's index-search.js, as the Hours drawer's
+           are; without it, the link to the full hours. #}
+        {% if answer %}
+          <section class="pf-index-answer" data-pf-index-answer="{{ answer.key }}" aria-labelledby="pf-index-answer-title">
+            <div class="pf-index-answer__head">
+              <h2 class="pf-index-answer__title" id="pf-index-answer-title">{{ answer.title }}</h2>
+              <p class="pf-index-answer__date" data-pf-index-answer-date></p>
+            </div>
+            {% if answer.locations %}
+              <ul class="pf-hours__list pf-index-answer__hours" role="list" hidden>
+                {% for location in answer.locations %}
+                  <li class="pf-hours__loc is-loading" data-pf-hours-loc data-lid="{{ location.lid }}">
+                    <span class="pf-hours__badge" data-pf-hours-badge></span>
+                    <span class="pf-hours__text">
+                      <span class="pf-hours__when" data-pf-hours-when>{{ 'Loading hours…'|t }}</span>
+                      <span class="pf-hours__name" data-pf-hours-name{% if location.name %} data-fixed{% endif %}>{{ location.name }}</span>
+                    </span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+            {% if answer.links %}
+              <p class="pf-index-answer__links">
+                {% for link in answer.links %}
+                  <a href="{{ link.url }}">{{ link.label }}{% if link.external %}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a>
+                {% endfor %}
+              </p>
+            {% endif %}
+          </section>
+        {% endif %}
+
         {% for section in sections %}
           <section class="pf-index-section pf-index-section--{{ section.key|clean_class }}" data-pf-index-source="{{ section.key }}" aria-labelledby="pf-index-{{ section.key }}">
-            <div class="pf-index-rule"><h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{% if section.about %}<button class="pf-term" type="button" popovertarget="pf-index-about-{{ section.key }}" style="anchor-name:--pf-index-about-{{ section.key }}">{{ section.label }}</button>{% else %}{{ section.label }}{% endif %}</h2>{% if section.about %}<div class="pf-term__card" id="pf-index-about-{{ section.key }}" popover style="position-anchor:--pf-index-about-{{ section.key }}"><p class="pf-term__name">{{ section.label }}</p><p class="pf-term__definition">{{ section.about }}</p></div>{% endif %}{% if section.via %}{{ index.via(section.via) }}{% endif %}</div>
+            {# A heading as plain as the page's own: the source, how many it found
+               (filled in when a late section arrives) and what it holds. #}
+            <header class="pf-index-section__head">
+              <h2 class="pf-index-section__title" id="pf-index-{{ section.key }}">{{ section.label }}</h2>
+              <p class="pf-index-section__count" data-pf-index-section-count>{{ section.count }}</p>
+              {% if section.about %}<p class="pf-index-section__about">{{ section.about }}</p>{% endif %}
+              {% if section.via %}{{ index.via(section.via) }}{% endif %}
+            </header>
             {% if section.late_url %}
               <div class="pf-index-section__late" data-pf-index-late="{{ section.late_url }}" aria-busy="true">
                 <p class="pf-index-list__status"><a href="{{ section.full_url }}" data-no-swup>{{ 'Show results from @label'|t({'@label': section.label}) }}</a></p>
@@ -193,11 +245,11 @@
         {% if list %}
           <section{{ list_title ? ' class="pf-index-section"'|raw }}{% if list_source %} data-pf-index-source="{{ list_source }}"{% endif %} aria-labelledby="pf-index-results">
             {% if list_title %}
-              <div class="pf-index-rule pf-index__list-head">
+              <header class="pf-index-section__head pf-index__list-head">
                 <h2 class="pf-index-section__title" id="pf-index-results">{{ list_title }}</h2>
-                {% if total is not null %}<p class="pf-index__total">{{ total == 1 ? '1 result'|t : '@total results'|t({'@total': total|number_format}) }}</p>{% endif %}
+                <p class="pf-index-section__count" data-pf-index-section-count>{% if total is not null %}{{ total == 1 ? '1 result'|t : '@total results'|t({'@total': total|number_format}) }}{% endif %}</p>
                 {% if sorts %}{{ index.sort(sorts, sort) }}{% endif %}
-              </div>
+              </header>
             {% else %}
               <h2 class="visually-hidden" id="pf-index-results">{{ 'Results'|t }}</h2>
             {% endif %}

@@ -6,10 +6,12 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\PageCache\ResponsePolicy\KillSwitch;
 use Drupal\Core\Pager\PagerManagerInterface;
 use Drupal\Core\Render\RendererInterface;
+use Drupal\Core\Routing\LocalRedirectResponse;
 use Drupal\Core\Url;
 use Drupal\palefire_search\ExternalSearch;
 use Drupal\palefire_search\LocalSearch;
 use Drupal\palefire_search\ResultText;
+use Drupal\palefire_search\SearchAnswers;
 use Drupal\palefire_search\SearchSources;
 use Drupal\palefire_search\SearchTerms;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -94,9 +96,9 @@ class SearchController extends ControllerBase {
   }
 
   /**
-   * The page.
+   * The page, or a move to the mode the search now belongs to.
    */
-  public function page(Request $request): array {
+  public function page(Request $request): array|LocalRedirectResponse {
     $parameters = $request->query->all();
     $query = $this->query($parameters);
     $modes = SearchSources::modes();
@@ -104,6 +106,9 @@ class SearchController extends ControllerBase {
     $mode = $modes[$mode_key];
 
     [$chosen, $refines] = $this->selection($parameters, $mode);
+    if ($query !== '' && ($moved = $this->moved($mode, $chosen, $refines, $query, $parameters))) {
+      return $moved;
+    }
     $selected = array_values(array_intersect($mode['sources'], array_unique([...$chosen, ...array_keys($refines)])));
     $years = array_filter($selected, static fn(string $key): bool => !empty(SearchSources::get($key)['year_filter'])) ? $this->years($parameters) : [];
     $sorts = SearchSources::sorts($selected);
@@ -150,6 +155,7 @@ class SearchController extends ControllerBase {
     }
 
     $build['#links'] = $this->outsideLinks($mode['links'], $query);
+    $build['#answer'] = $page === 0 ? $this->answer($query) : NULL;
     if (!SearchSources::indexableWords($query)) {
       $build['#notice'] = SearchTerms::hasOperators($query)
         ? $this->t('The site index needs a word of three letters or more to look for, so its results are left out. Outside services still search for “@query”.', ['@query' => $query])
@@ -286,6 +292,38 @@ class SearchController extends ControllerBase {
   }
 
   /**
+   * The same search in another mode, once it no longer fits this one.
+   *
+   * Special Collections without its Catalog filter, archives or news is a
+   * Research search: everything else chosen goes with it.
+   */
+  private function moved(array $mode, array $chosen, array $refines, string $query, array $parameters): ?LocalRedirectResponse {
+    $unless = $mode['unless'] ?? NULL;
+    if (!$unless || array_intersect($chosen, $unless['sources']) || array_intersect(array_keys($refines), $unless['sources'])) {
+      return NULL;
+    }
+    foreach ($unless['refine'] as $key => $option) {
+      // Not taken off: no filter of its own, or this one still among them.
+      if (!isset($refines[$key]) || in_array($option, $refines[$key], TRUE)) {
+        return NULL;
+      }
+    }
+    $to = SearchSources::modes()[$unless['mode']];
+    $sources = array_values(array_intersect($chosen, $to['sources']));
+    $kept = [];
+    foreach ($refines as $key => $options) {
+      $options = array_values(array_diff($options, [self::ANY]));
+      if ($options && in_array($key, $to['sources'], TRUE)) {
+        $kept[$key] = $options;
+      }
+    }
+    $sort = is_string($parameters['sort'] ?? NULL) ? $parameters['sort'] : 'relevance';
+    $response = new LocalRedirectResponse($this->address($unless['mode'], $query, $sources, $kept, $sort, $this->years($parameters)));
+    $response->getCacheableMetadata()->addCacheContexts(['url.query_args']);
+    return $response;
+  }
+
+  /**
    * A source's filters, with its defaults where nothing else is chosen.
    *
    * The form sends a filter's default back along with everything else. That says
@@ -378,6 +416,7 @@ class SearchController extends ControllerBase {
           'key' => $key,
           'label' => $definition['label'],
           'about' => $definition['about'] ?? NULL,
+          'count' => $this->countText($results['total'], !empty($results['capped'])),
           'list' => $this->listBuild($definition['label'], $results, $more, 'Show all @total'),
         ];
       }
@@ -413,6 +452,34 @@ class SearchController extends ControllerBase {
   }
 
   /**
+   * How many a source found, for its heading: "1 result", "300+ results".
+   */
+  private function countText(?int $total, bool $capped): string {
+    if ($total === NULL) {
+      return '';
+    }
+    return $capped
+      ? (string) $this->t('@count+ results', ['@count' => number_format($total)])
+      : (string) $this->formatPlural($total, '1 result', '@count results', ['@count' => number_format($total)]);
+  }
+
+  /**
+   * A short answer above the results, for a search about a service.
+   */
+  private function answer(string $query): ?array {
+    $answer = SearchAnswers::find($query);
+    if (!$answer) {
+      return NULL;
+    }
+    return [
+      'key' => $answer['key'],
+      'title' => $this->t($answer['title']),
+      'locations' => array_map(fn(array $location): array => ['name' => $location['name'] === '' ? '' : $this->t($location['name'])] + $location, $answer['locations'] ?? []),
+      'links' => array_map(fn(array $link): array => ['label' => $this->t($link[0]), 'url' => $link[1], 'external' => $link[2]], $answer['links'] ?? []),
+    ];
+  }
+
+  /**
    * A results list's render array.
    */
   private function listBuild(string $label, array $results, ?string $more_url, ?string $more_label, ?int $page = NULL): array {
@@ -423,6 +490,7 @@ class SearchController extends ControllerBase {
       '#theme' => 'palefire_search_list',
       '#label' => $label,
       '#total' => $results['total'],
+      '#count' => $this->countText($results['total'], !empty($results['capped'])),
       '#items' => $results['items'],
       '#failed' => $results['failed'] ?? FALSE,
       '#simplified' => $results['simplified'] ?? NULL,
@@ -523,6 +591,12 @@ class SearchController extends ControllerBase {
         $groups[] = ['title' => $this->t($definition['refine_label']), 'name' => 'refine[]', 'options' => $options];
       }
     }
+    // What no choice means, said in the list: every source.
+    $narrowed = FALSE;
+    foreach ($groups[0]['options'] as $source) {
+      $narrowed = $narrowed || $source['checked'] || in_array(TRUE, array_column($source['sub']['options'] ?? [], 'checked'), TRUE);
+    }
+    $groups[0]['all'] = ['label' => $this->t('All sources'), 'checked' => !$narrowed];
     return $groups;
   }
 

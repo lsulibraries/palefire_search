@@ -82,6 +82,14 @@ final class SearchSources {
         'refine_sources' => ['archive'],
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
+        // With the Catalog's Special Collections filter taken off, and none of
+        // its archives or news chosen, the search is a Research one: it moves
+        // there with everything else it had.
+        'unless' => [
+          'refine' => ['catalog' => 'library_special'],
+          'sources' => ['archive', 'news_special'],
+          'mode' => 'research',
+        ],
         'upcoming' => ['alma'],
         'links' => [],
       ],
@@ -233,6 +241,9 @@ final class SearchSources {
         // to be dropped from the bento_search index itself later; until then this
         // keeps them out, and it does no harm after.
         'record_types' => ['finding_aid', 'oral_history'],
+        // Records of these types with no PDF are left out: oral histories not
+        // yet processed, which are to leave the index.
+        'needs_url' => ['oral_history'],
         // What each record type is called on its result.
         'record_labels' => [
           'finding_aid' => 'Finding aid',
