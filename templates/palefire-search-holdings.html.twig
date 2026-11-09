@@ -7,7 +7,7 @@
  * Variables:
  * - records: each [id, state, place, reason, due, more, url, copies].
  *   state: available, online, out or listed. Each copy is one library and shelf:
- *   [library, shelf, type, call_number, general_call, call_more, floor, map_url,
+ *   [library, library_name, library_more, item_id, shelf, type, call_number, general_call, call_more, floor, map_url,
  *   has (lines), available,
  *   total, online, reason, due, hold_url, request_url, reading_room, items,
  *   items_more]. Each
@@ -47,104 +47,113 @@
           <span class="pf-button--secondary"><span class="pf-index-row__toggle-label"><span class="pf-index-row__when-closed">{{ record.copies|length > 1 ? 'Show @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Show @count items'|t({'@count': only.total}) : 'Show location'|t) }}</span><span class="pf-index-row__when-open">{{ record.copies|length > 1 ? 'Hide @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Hide @count items'|t({'@count': only.total}) : 'Hide location'|t) }}</span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span>
           </span>
         </summary>
+        {# Each library is a group: what's the same for its copies is said once in
+           its heading, with its own buttons, and its table keeps only what differs
+           from copy to copy. Copy numbers arrive when the table opens, and a
+           library's copies sort within it (index-search.js). #}
+        {% set note_at = record.copies|filter(c => c.reading_room)|keys|first %}
+        {% set copy_total = record.copies|reduce((sum, c) => sum + c.total, 0) %}
         <div class="pf-index-row__copies-table">
-          <table role="table">
-            <caption class="visually-hidden">{{ 'Where this is held'|t }}</caption>
-            {% set sortable = record.copies|filter(c => c.items|length > 1)|length > 0 %}
-            <thead role="rowgroup">
-              <tr role="row">
-                {# The catalog's own order of columns. A shelf's items can be put in
-                   order by call number or status, within their library
-                   (index-search.js). Stacked, the table has no headings to press,
-                   so the words stand alone. Copy numbers arrive when the table
-                   opens (index-search.js). #}
-                <th role="columnheader" scope="col">{{ 'Library'|t }}</th>
-                <th role="columnheader" scope="col">{{ 'Type'|t }}</th>
-                {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Call number'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ 'Call number'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Call number'|t }}</th>{% endif %}
-                <th role="columnheader" scope="col">{{ 'Copy'|t }}</th>
-                <th role="columnheader" scope="col">{{ 'Shelf location'|t }}</th>
-                {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Status'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="status">{{ 'Status'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Status'|t }}</th>{% endif %}
-                <th role="columnheader" scope="col"><span class="visually-hidden">{{ 'Actions'|t }}</span></th>
-              </tr>
-            </thead>
-            <tbody role="rowgroup">
-              {# The reading room note goes under the first shelf it's about. #}
-              {% set note_at = record.copies|filter(c => c.reading_room)|keys|first %}
-              {% for copy in record.copies %}
-                <tr role="row" class="pf-index-row__copy-row">
-                  <td role="cell" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
-                  <td role="cell" data-label="{{ 'Type'|t }}">{{ copy.type }}</td>
-                  <td role="cell" data-label="{{ 'Call number'|t }}">{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</td>
-                  <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if copy.item_id %} data-pf-index-copy-of="{{ copy.item_id }}"{% endif %}></td>
-                  <td role="cell" data-label="{{ 'Shelf location'|t }}">{{ copy.shelf }}{% if copy.floor %}<span class="pf-index-row__floor">{{ copy.floor }}</span>{% endif %}</td>
-                  <td role="cell" data-label="{{ 'Status'|t }}">
-                    {%- if not copy.total -%}
-                      {{ 'Ask at the library'|t }}
-                    {%- elseif copy.total == 1 and copy.available == 1 -%}
-                      {{ copy.online ? 'Available online'|t : (copy.reading_room ? 'Available to view'|t : 'Available'|t) }}
-                    {%- elseif copy.available -%}
-                      {{ '@available of @total available'|t({'@available': copy.available, '@total': copy.total}) }}
-                    {%- else -%}
-                      {{ holdings.why(copy) }}
-                    {%- endif -%}
-                  </td>
-                  <td role="cell" class="pf-index-row__copy-actions">
-                    {%- if copy.map_url %}{{ holdings.out(copy.map_url, 'Find in the Library'|t) }}{% endif -%}
-                    {%- if copy.hold_url %}{{ holdings.out(copy.hold_url, 'Place hold'|t) }}{% endif -%}
-                    {%- if copy.request_url %}{{ holdings.out(copy.request_url, 'Request to view'|t) }}{% endif -%}
-                  </td>
-                </tr>
-                {# A serial's run can be very long: its own row, across the table. The
-                   catalog writes it with no space after a comma, so it can't wrap. #}
-                {% if copy.has %}
-                  <tr role="row" class="pf-index-row__copy-has">
-                    <td role="cell" colspan="7" data-label="{{ 'LSU has'|t }}">
-                      {%- for line in copy.has -%}
-                        <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
-                      {%- endfor -%}
-                    </td>
+          {% for copy in record.copies %}
+            {% set place_id = 'pf-index-place-' ~ record.id ~ '-' ~ loop.index %}
+            {% set sortable = copy.items|length > 1 %}
+            <section class="pf-index-row__place" aria-labelledby="{{ place_id }}">
+              <div class="pf-index-row__place-head">
+                <div class="pf-index-row__place-about">
+                  <h4 class="pf-index-row__place-name" id="{{ place_id }}">{{ copy.library_name }}</h4>
+                  <p class="pf-index-row__place-detail">
+                    {%- if copy.library_more %}{{ copy.library_more }} · {% endif -%}
+                    {{ copy.shelf }}{% if copy.floor %}, {{ copy.floor }}{% endif %}
+                    {%- if copy.type %} · {{ copy.type }}{% endif -%}
+                  </p>
+                </div>
+                <div class="pf-index-row__copy-actions">
+                  {%- if copy.map_url %}{{ holdings.out(copy.map_url, 'Find in the Library'|t) }}{% endif -%}
+                  {%- if copy.hold_url %}{{ holdings.out(copy.hold_url, 'Place hold'|t) }}{% endif -%}
+                  {%- if copy.request_url %}{{ holdings.out(copy.request_url, 'Request to view'|t) }}{% endif -%}
+                </div>
+              </div>
+              {# Said once, under the first library it's about. #}
+              {% if note_at is not same as(false) and note_at is not null and loop.index0 == note_at %}
+                <p class="pf-index-row__copy-note"><svg class="pf-index-row__info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>{{ 'Viewed in the Hill Memorial reading room, by request.'|t }} <a href="/v2/special/guides/special-collections" target="_blank" data-no-swup>{{ 'How requests work'|t }}<span class="visually-hidden"> {{ '(opens in a new tab)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></span></p>
+              {% endif %}
+              {# A serial's run that no single box claims. The catalog writes it with
+                 no space after a comma, so it can't wrap until it has one. #}
+              {% if copy.has %}
+                <div class="pf-index-row__copy-has">
+                  <p class="pf-index-row__copy-has-label">{{ 'LSU has'|t }}</p>
+                  {%- for line in copy.has -%}
+                    <p>{{ line|replace({',': ', ', ', ': ', '}) }}</p>
+                  {%- endfor -%}
+                </div>
+              {% endif %}
+              <table role="table">
+                <caption class="visually-hidden">{{ 'Copies at @library'|t({'@library': copy.library}) }}</caption>
+                <thead role="rowgroup">
+                  <tr role="row">
+                    {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Call number'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ 'Call number'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Call number'|t }}</th>{% endif %}
+                    <th role="columnheader" scope="col">{{ 'Copy'|t }}</th>
+                    {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Status'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="status">{{ 'Status'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Status'|t }}</th>{% endif %}
+                    <th role="columnheader" scope="col"><span class="visually-hidden">{{ 'Actions'|t }}</span></th>
                   </tr>
-                {% endif %}
-                {% if note_at is not same as(false) and note_at is not null and loop.index0 == note_at %}
-                  <tr role="row" class="pf-index-row__copy-note-row">
-                    <td role="cell" colspan="7">
-                      <p class="pf-index-row__copy-note"><svg class="pf-index-row__info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>{{ 'Viewed in the Hill Memorial reading room.'|t }} <a href="/v2/special/guides/special-collections" target="_blank" data-no-swup>{{ 'How requests work'|t }}<span class="visually-hidden"> {{ '(opens in a new tab)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></span></p>
-                    </td>
-                  </tr>
-                {% endif %}
-                {# Each box or volume, in the columns above, with its own request. Where
-                   it has no contents, its shelf is said again, muted, so the row is
-                   whole; a stacked row leaves that out (index-search.scss). #}
-                {% for item in copy.items %}
-                  <tr role="row" class="pf-index-row__copy-item" data-pf-index-available="{{ item.available ? 1 : 0 }}">
-                    {% if item.contents %}
-                      <td role="cell" class="pf-index-row__item-contents" colspan="2" data-label="{{ 'LSU has'|t }}">
-                        {%- for line in item.contents -%}
-                          <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
-                        {%- endfor -%}
-                      </td>
-                    {% else %}
-                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
-                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Type'|t }}">{{ copy.type }}</td>
+                </thead>
+                <tbody role="rowgroup">
+                  {% if copy.items %}
+                    {# Each box or volume, with what it holds and its own request. #}
+                    {% for item in copy.items %}
+                      <tr role="row" class="pf-index-row__copy-item" data-pf-index-available="{{ item.available ? 1 : 0 }}">
+                        <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}"><span class="pf-index-row__item-number">{{ item.call_number }}</span>
+                          {%- if item.contents -%}
+                            <span class="pf-index-row__item-contents"><span class="visually-hidden">{{ 'LSU has'|t }}: </span>
+                              {%- for line in item.contents -%}
+                                <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
+                              {%- endfor -%}
+                            </span>
+                          {%- endif -%}
+                        </td>
+                        <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if item.item_id %} data-pf-index-copy-of="{{ item.item_id }}"{% endif %}></td>
+                        <td role="cell" class="pf-index-row__item-status" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
+                        <td role="cell" class="pf-index-row__copy-actions">
+                          {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request to view'|t, item.call_number) }}{% endif -%}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                    {% if copy.items_more %}
+                      <tr role="row" class="pf-index-row__copy-more">
+                        <td role="cell" colspan="4">{{ '+ @count more in the full record'|t({'@count': copy.items_more}) }}</td>
+                      </tr>
                     {% endif %}
-                    <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item.call_number }}</td>
-                    <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if item.item_id %} data-pf-index-copy-of="{{ item.item_id }}"{% endif %}></td>
-                    <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Shelf location'|t }}">{{ copy.shelf }}</td>
-                    <td role="cell" class="pf-index-row__item-status" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
-                    <td role="cell" class="pf-index-row__copy-actions">
-                      {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request to view'|t, item.call_number) }}{% endif -%}
-                    </td>
-                  </tr>
-                {% endfor %}
-                {% if copy.items_more %}
-                  <tr role="row" class="pf-index-row__copy-more">
-                    <td role="cell" colspan="7">{{ '+ @count more in the full record'|t({'@count': copy.items_more}) }}</td>
-                  </tr>
-                {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
-          <p class="pf-index-row__full" data-no-swup><a href="{{ record.url }}">{{ 'Full record in the catalog'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
+                  {% else %}
+                    {# One copy, or none to count: one row. Its buttons are in the heading. #}
+                    <tr role="row" class="pf-index-row__copy-item">
+                      <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}"><span class="pf-index-row__item-number">{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</span></td>
+                      <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if copy.item_id %} data-pf-index-copy-of="{{ copy.item_id }}"{% endif %}></td>
+                      <td role="cell" class="pf-index-row__item-status" data-label="{{ 'Status'|t }}">
+                        {%- if not copy.total -%}
+                          {{ 'Ask at the library'|t }}
+                        {%- elseif copy.available -%}
+                          {{ copy.online ? 'Available online'|t : (copy.reading_room ? 'Available to view'|t : 'Available'|t) }}
+                        {%- else -%}
+                          {{ holdings.why(copy) }}
+                        {%- endif -%}
+                      </td>
+                      <td role="cell" class="pf-index-row__copy-actions"></td>
+                    </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </section>
+          {% endfor %}
+          {# What the panel covered, and the way to everything it leaves out. #}
+          <div class="pf-index-row__foot">
+            <p class="pf-index-row__foot-count">
+              {%- if copy_total > 0 -%}
+                {{ copy_total == 1 ? '1 copy'|t : '@count copies'|t({'@count': copy_total}) }}
+                {%- if record.copies|length > 1 %} {{ 'in @count libraries'|t({'@count': record.copies|length}) }}{% endif -%}
+              {%- endif -%}
+            </p>
+            <a class="pf-index-row__full" href="{{ record.url }}" data-no-swup>{{ 'Full record in the catalog'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          </div>
         </div>
       </details>
     {% endif %}

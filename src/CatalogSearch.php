@@ -508,8 +508,14 @@ class CatalogSearch {
       // A holding's call number covers the shelf only if it isn't one item's own.
       $whole = $found['marc_calls'] && !array_intersect($found['marc_calls'], $calls) ? $found['marc_calls'][0] : '';
       $several = $listed && count($calls) > 1;
+      // "LSU Library (Main Collection)" and "Special Collections, Hill Memorial
+      // Library" are headed by their first part, as the catalog names them.
+      $full = $libraries[$library] ?? $library;
+      $name = preg_match('/^(.+?)\s*(?:\((.+)\)|,\s*(.+))$/u', $full, $part) ? [$part[1], ($part[2] ?? '') !== '' ? $part[2] : ($part[3] ?? '')] : [$full, ''];
       $copies[] = [
-        'library' => $libraries[$library] ?? $library,
+        'library' => $full,
+        'library_name' => $name[0],
+        'library_more' => $name[1],
         'shelf' => $shelf,
         'type' => $type,
         'call_number' => $whole ?: ($several ? '' : implode(', ', array_slice($calls, 0, 3))),
