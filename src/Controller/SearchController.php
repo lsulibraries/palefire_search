@@ -38,6 +38,18 @@ class SearchController extends ControllerBase {
   private const SECTION_LIMIT = 3;
 
   /**
+   * When a search finds this many sources or fewer, each shows more.
+   */
+  private const ROOMY_SECTIONS = 2;
+
+  /**
+   * Results per section then: a site source's, and an outside one's.
+   */
+  private const ROOMY_LIMIT = 10;
+
+  private const ROOMY_EXTERNAL_LIMIT = 8;
+
+  /**
    * Results per page in a list.
    */
   private const LIST_LIMIT = 20;
@@ -183,7 +195,7 @@ class SearchController extends ControllerBase {
       }
     }
     else {
-      $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines, $years);
+      $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines, $years, TRUE);
     }
 
     $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $years, $query);
@@ -205,7 +217,8 @@ class SearchController extends ControllerBase {
     $query = $this->query($parameters);
     $refines = $this->selection($parameters, ['sources' => [$source]])[1];
     $years = !empty($definition['year_filter']) ? $this->years($parameters) : [];
-    $limit = $definition['section_limit'] ?? self::SECTION_LIMIT;
+    // More rows when it's one of only a few sources (sections()).
+    $limit = ($parameters['rows'] ?? NULL) === 'more' ? self::ROOMY_EXTERNAL_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT);
     $results = $query === ''
       ? ['total' => 0, 'failed' => FALSE, 'items' => []]
       : $this->external->search($definition, $query, 0, $limit, 'relevance', ['refine' => $refines[$source] ?? [], ...$years]);
@@ -384,9 +397,27 @@ class SearchController extends ControllerBase {
   /**
    * The labelled sections. External ones load after the page.
    *
-   * A section with no results is left out, so visitors see what's there.
+   * A section with no results is left out, so visitors see what's there. When
+   * only a few sources are left, each shows more of what it found, unless a
+   * list follows them ($roomy FALSE).
    */
-  private function sections(array $keys, string $mode_key, string $query, array $refines, array $years): array {
+  private function sections(array $keys, string $mode_key, string $query, array $refines, array $years, bool $roomy = FALSE): array {
+    // The site's own sources first: their totals say how many sections there are.
+    $found = [];
+    $count = 0;
+    foreach ($keys as $key) {
+      $definition = SearchSources::get($key);
+      if ($definition['kind'] === 'external') {
+        $count++;
+        continue;
+      }
+      $found[$key] = $this->local->search([$key], $query, $refines, 0, $roomy ? self::ROOMY_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT));
+      if ($found[$key]['total'] > 0) {
+        $count++;
+      }
+    }
+    $roomy = $roomy && $count <= self::ROOMY_SECTIONS;
+
     $sections = [];
     foreach ($keys as $key) {
       $definition = SearchSources::get($key);
@@ -402,15 +433,17 @@ class SearchController extends ControllerBase {
               'mode' => $mode_key === 'all' ? '' : $mode_key,
               'refine' => array_map(static fn(string $option): string => $key . ':' . $option, $refines[$key] ?? []),
               ...(!empty($definition['year_filter']) ? $years : []),
+              'rows' => $roomy ? 'more' : '',
             ]),
           ])->toString(),
           'full_url' => $this->address($mode_key, $query, [$key], array_intersect_key($refines, [$key => TRUE]), 'relevance', !empty($definition['year_filter']) ? $years : []),
         ];
         continue;
       }
-      $limit = $definition['section_limit'] ?? self::SECTION_LIMIT;
-      $results = $this->local->search([$key], $query, $refines, 0, $limit);
+      $results = $found[$key];
       if ($results['total'] > 0) {
+        $limit = $roomy ? self::ROOMY_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT);
+        $results['items'] = array_slice($results['items'], 0, $limit);
         $more = $results['total'] > $limit ? $this->address($mode_key, $query, [$key]) : NULL;
         $sections[] = [
           'key' => $key,
