@@ -281,6 +281,8 @@ final class SearchSources {
         'about' => 'Answers to questions people often ask the Libraries.',
         // The answer, ahead of a tile's usual summary.
         'summary_fields' => ['field_tile_linked_text', 'field_tile_long_summary', 'field_tile_text'],
+        // Answers are short: the whole of one, in its paragraphs, not a cut.
+        'whole_summary' => TRUE,
         'kind' => 'local',
         'types' => ['tile'],
         'categories' => [541],

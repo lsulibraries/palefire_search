@@ -22,6 +22,16 @@ final class ResultText {
   private const PLACEHOLDERS = ['Enter short description here.'];
 
   /**
+   * Longest whole text (paragraphs()), a guard against an unusually long one.
+   */
+  private const WHOLE_LENGTH = 1600;
+
+  /**
+   * Between paragraphs in plain text; highlight() makes it a break.
+   */
+  private const BREAK = "\x03";
+
+  /**
    * Plain text from HTML, or from a service's encoded HTML.
    */
   public static function clean(?string $text): string {
@@ -38,6 +48,24 @@ final class ResultText {
    */
   public static function isPlaceholder(string $text): bool {
     return in_array(trim($text), self::PLACEHOLDERS, TRUE);
+  }
+
+  /**
+   * The whole text as plain paragraphs (BREAK between), or ''.
+   *
+   * A list item or line counts as a paragraph, so a list keeps its lines.
+   */
+  public static function paragraphs(?string $text): string {
+    $text = html_entity_decode((string) $text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $parts = preg_split('#<(?:/p|/div|/li|br\s*/?|/h[1-6]|/blockquote|/tr)\s*>|\R\s*\R#i', $text) ?: [$text];
+    $parts = array_values(array_filter(array_map([self::class, 'clean'], $parts), static fn(string $part): bool => $part !== '' && !self::isPlaceholder($part)));
+    $whole = implode(self::BREAK, $parts);
+    if (mb_strlen($whole) <= self::WHOLE_LENGTH) {
+      return $whole;
+    }
+    $cut = mb_substr($whole, 0, self::WHOLE_LENGTH);
+    $space = mb_strrpos($cut, ' ');
+    return rtrim($space ? mb_substr($cut, 0, $space) : $cut, " ,;:." . self::BREAK) . '…';
   }
 
   /**
@@ -89,7 +117,7 @@ final class ResultText {
       // A bad UTF-8 sequence gives NULL: keep the text, unmarked.
       $text = $marked ?? $text;
     }
-    $safe = strtr(Html::escape($text), ["\x01" => '<mark>', "\x02" => '</mark>']);
+    $safe = strtr(Html::escape($text), ["\x01" => '<mark>', "\x02" => '</mark>', self::BREAK => '<span class="pf-index-row__break"></span>']);
     return Markup::create($safe);
   }
 

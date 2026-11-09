@@ -494,7 +494,7 @@ class LocalSearch {
       'title' => ResultText::highlight(ResultText::clean($title), $words),
       'url' => $url,
       'external' => (bool) preg_match('#^https?://(?!lib\.lsu\.edu)#i', $url),
-      'summary' => ResultText::highlight(ResultText::summary($summary), $words),
+      'summary' => ResultText::highlight(!empty($this->sourceOf($node, $source_keys)['whole_summary']) ? ResultText::paragraphs($summary) : ResultText::summary($summary), $words),
       'excerpt' => $node->bundle() === 'archive_record' ? $this->excerpt($excerpt, $words) : '',
       'pdf' => $node->bundle() === 'archive_record' ? $this->pdfFacts->forUrl($url) : [],
       'meta' => ResultText::clean($meta),
