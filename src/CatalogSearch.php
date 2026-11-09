@@ -288,6 +288,36 @@ class CatalogSearch {
   }
 
   /**
+   * The catalog's copy number for each item of a record, by item ID.
+   *
+   * The service has none, so they come from the record's own page, which lists
+   * each item's copy beside its ID. Asked for only when someone opens the
+   * record's table. If the page fails or changes, the numbers are just missing.
+   *
+   * @return array
+   *   Copy numbers keyed by item ID, empty if none could be read.
+   */
+  public function copyNumbers(string $id): array {
+    $key = 'palefire_search:catalog_copies:' . $id;
+    $kept = $this->cache->get($key);
+    if ($kept) {
+      return $kept->data;
+    }
+    $page = $this->fetch(self::RECORD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id . '/one', self::SERVICE_TIMEOUT);
+    if ($page === NULL) {
+      return [];
+    }
+    $copies = [];
+    foreach (array_slice(explode('class="detailItemsTableRow', $page), 1) as $row) {
+      if (preg_match('/detailItemsTable_COPY">\s*(\d+)\s*</', $row, $copy) && preg_match('/id="asyncFielddetailItemsDiv\d+SD_ITEM_STATUS([^"]+)"/', $row, $item)) {
+        $copies[$item[1]] = (int) $copy[1];
+      }
+    }
+    $this->cache->set($key, $copies, time() + self::NAMES_KEEP);
+    return $copies;
+  }
+
+  /**
    * Adds the floor and a map link to copies the shelf maps know.
    *
    * Without the maps, copies just have neither.
@@ -383,7 +413,7 @@ class CatalogSearch {
    *   map_url, has (lines, less any an item took as its contents),
    *   available, total, online, reason, due, hold_url, request_url, reading_room,
    *   items, items_more]. reading_room: it's requested to view, not taken away. With more than one physical item on a shelf, items has each
-   *   one's [call_number, contents, available, reason, due, request_url], and
+   *   one's [item_id, call_number, contents, available, reason, due, request_url], and
    *   those carry the requests. NULL with no copies.
    */
   private function holding(array $title, array $libraries, array $locations, array $types): ?array {
@@ -415,6 +445,7 @@ class CatalogSearch {
           $groups[$group]['due'] = $due;
         }
         $groups[$group]['items'][] = [
+          'item_id' => (string) ($item['itemID'] ?? ''),
           'call_number' => $number,
           'contents' => [],
           'available' => $here,
@@ -483,6 +514,8 @@ class CatalogSearch {
         'type' => $type,
         'call_number' => $whole ?: ($several ? '' : implode(', ', array_slice($calls, 0, 3))),
         'general_call' => $whole,
+        // A shelf with one item: its copy number goes on the shelf's own row.
+        'item_id' => $found['total'] === 1 ? ($found['items'][0]['item_id'] ?? '') : '',
         'call_count' => count($calls),
         'call_more' => $whole || $several ? 0 : max(0, count($calls) - 3),
         'first_call' => $first_call,

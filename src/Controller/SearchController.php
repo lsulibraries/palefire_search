@@ -13,6 +13,7 @@ use Drupal\palefire_search\ResultText;
 use Drupal\palefire_search\SearchSources;
 use Drupal\palefire_search\SearchTerms;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -53,6 +54,11 @@ class SearchController extends ControllerBase {
    * How long browsers may keep availability, in seconds.
    */
   private const HOLDINGS_MAX_AGE = 120;
+
+  /**
+   * Seconds a record's copy numbers may be kept: they rarely change.
+   */
+  private const COPIES_MAX_AGE = 3600;
 
   /**
    * The filter value that says no to a filter's default.
@@ -235,6 +241,19 @@ class SearchController extends ControllerBase {
     }
     $response->setPublic();
     $response->setMaxAge(self::HOLDINGS_MAX_AGE);
+    return $response;
+  }
+
+  /**
+   * One Catalog record's copy numbers, by item ID, as JSON. A failure answers
+   * with none, kept only briefly.
+   */
+  public function copies(Request $request): JsonResponse {
+    $id = $request->query->all()['id'] ?? NULL;
+    $copies = is_string($id) && preg_match('/^\d{1,10}$/', $id) ? $this->external->catalogCopies($id) : [];
+    $response = new JsonResponse((object) $copies);
+    $response->setPublic();
+    $response->setMaxAge($copies ? self::COPIES_MAX_AGE : 60);
     return $response;
   }
 

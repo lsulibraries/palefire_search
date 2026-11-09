@@ -24,3 +24,12 @@ palefire_search.holdings:
     _controller: '\Drupal\palefire_search\Controller\SearchController::holdings'
   requirements:
     _access: 'TRUE'
+
+# One Catalog record's copy numbers, read from its page when its table is
+# opened. Answers with JSON keyed by item ID.
+palefire_search.copies:
+  path: '/v2/search/copies'
+  defaults:
+    _controller: '\Drupal\palefire_search\Controller\SearchController::copies'
+  requirements:
+    _access: 'TRUE'

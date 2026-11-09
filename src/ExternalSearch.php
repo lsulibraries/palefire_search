@@ -88,6 +88,13 @@ class ExternalSearch {
   }
 
   /**
+   * A Catalog record's copy numbers, by item ID.
+   */
+  public function catalogCopies(string $id): array {
+    return $this->catalog->copyNumbers($id);
+  }
+
+  /**
    * Filter counts from a service's latest search, by filter name.
    */
   public function counts(array $source): array {
