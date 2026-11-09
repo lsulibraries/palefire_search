@@ -229,7 +229,9 @@ final class SearchSources {
         'kind' => 'local',
         'types' => ['archive_record'],
         // Only these record types are searched: the PDFs. The rest of the
-        // archive records, such as Breaux Data, aren't part of the Index.
+        // archive records, such as Breaux Data, aren't part of the Index. They're
+        // to be dropped from the bento_search index itself later; until then this
+        // keeps them out, and it does no harm after.
         'record_types' => ['finding_aid', 'oral_history'],
         // What each record type is called on its result.
         'record_labels' => [

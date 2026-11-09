@@ -5,6 +5,11 @@
  * The Index: the Palefire search page at /v2/search.
  */
 
+use Drupal\Core\Breadcrumb\Breadcrumb;
+use Drupal\Core\Link;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Url;
+
 /**
  * Implements hook_theme().
  */
@@ -54,4 +59,21 @@ function palefire_search_theme(): array {
       ],
     ],
   ];
+}
+
+/**
+ * Implements hook_system_breadcrumb_alter().
+ *
+ * The Index in its Special Collections mode sits under Special Collections, so
+ * a search from that page has a way back to it. Read from the address, so a
+ * shared link shows the same trail.
+ */
+function palefire_search_system_breadcrumb_alter(Breadcrumb &$breadcrumb, RouteMatchInterface $route_match, array $context): void {
+  if ($route_match->getRouteName() !== 'palefire_search.page') {
+    return;
+  }
+  $breadcrumb->addCacheContexts(['url.query_args:mode']);
+  if (\Drupal::request()->query->get('mode') === 'special') {
+    $breadcrumb->addLink(Link::fromTextAndUrl(t('Special Collections'), Url::fromUserInput('/v2/special')));
+  }
 }
