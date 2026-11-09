@@ -480,6 +480,13 @@ class LocalSearch {
     if ($text === '' || !$words) {
       return '';
     }
+    // Text from a PDF can leave a space before punctuation: "fever ."
+    $text = preg_replace('/\s+([.,;:!?)])/u', '$1', $text) ?? $text;
+    // The processor stops at its length, often mid-word: end at a word instead.
+    if (!str_ends_with($text, '…')) {
+      $space = mb_strrpos($text, ' ');
+      $text = rtrim($space ? mb_substr($text, 0, $space) : $text, ' ,;:.') . ' …';
+    }
     $marked = ResultText::highlight($text, $words);
     return str_contains((string) $marked, '<mark>') ? $marked : '';
   }
