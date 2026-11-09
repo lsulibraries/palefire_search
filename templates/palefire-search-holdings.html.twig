@@ -61,6 +61,8 @@
               </tr>
             </thead>
             <tbody role="rowgroup">
+              {# The reading room note goes under the first shelf it's about. #}
+              {% set note_at = record.copies|filter(c => c.reading_room)|keys|first %}
               {% for copy in record.copies %}
                 <tr role="row">
                   <td role="cell" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
@@ -95,7 +97,16 @@
                     </td>
                   </tr>
                 {% endif %}
-                {# Each box or volume, in the columns above, with its own request. #}
+                {% if note_at is not same as(false) and note_at is not null and loop.index0 == note_at %}
+                  <tr role="row" class="pf-index-row__copy-note-row">
+                    <td role="cell" colspan="6">
+                      <p class="pf-index-row__copy-note"><svg class="pf-index-row__info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>{{ 'Viewed in the Hill Memorial reading room.'|t }} <a href="/v2/special/guides/special-collections" target="_blank" data-no-swup>{{ 'How requests work'|t }}<span class="visually-hidden"> {{ '(opens in a new tab)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></span></p>
+                    </td>
+                  </tr>
+                {% endif %}
+                {# Each box or volume, in the columns above, with its own request. Where
+                   it has no contents, its shelf is said again, muted, so the row is
+                   whole; a stacked row leaves that out (index-search.scss). #}
                 {% for item in copy.items %}
                   <tr role="row" class="pf-index-row__copy-item">
                     {% if item.contents %}
@@ -105,9 +116,9 @@
                         {%- endfor -%}
                       </td>
                     {% else %}
-                      <td role="cell"></td>
-                      <td role="cell"></td>
-                      <td role="cell"></td>
+                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
+                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Shelf location'|t }}">{{ copy.shelf }}</td>
+                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Material type'|t }}">{{ copy.type }}</td>
                     {% endif %}
                     <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item.call_number }}</td>
                     <td role="cell" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
@@ -124,11 +135,7 @@
               {% endfor %}
             </tbody>
           </table>
-          {# Said once, however many boxes a record lists. #}
-          {% if record.copies|filter(copy => copy.reading_room)|length %}
-            <p class="pf-index-row__copy-note">{{ 'Viewed in the Hill Memorial reading room.'|t }} <a href="/v2/special/guides/special-collections" target="_blank" data-no-swup>{{ 'How requests work'|t }}<span class="visually-hidden"> {{ '(opens in a new tab)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
-          {% endif %}
-          <p class="pf-index-list__more" data-no-swup><a class="pf-index-rule__link" href="{{ record.url }}">{{ 'Full record'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span></a></p>
+          <p class="pf-index-row__full" data-no-swup><a href="{{ record.url }}">{{ 'Full record in the catalog'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
         </div>
       </details>
     {% endif %}
