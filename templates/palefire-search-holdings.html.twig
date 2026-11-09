@@ -50,13 +50,17 @@
         <div class="pf-index-row__copies-table">
           <table role="table">
             <caption class="visually-hidden">{{ 'Where this is held'|t }}</caption>
+            {% set sortable = record.copies|filter(c => c.items|length > 1)|length > 0 %}
             <thead role="rowgroup">
               <tr role="row">
                 <th role="columnheader" scope="col">{{ 'Library'|t }}</th>
                 <th role="columnheader" scope="col">{{ 'Shelf location'|t }}</th>
                 <th role="columnheader" scope="col">{{ 'Material type'|t }}</th>
-                <th role="columnheader" scope="col">{{ 'Call number'|t }}</th>
-                <th role="columnheader" scope="col">{{ 'Status'|t }}</th>
+                {# A shelf's items can be put in order by call number or status,
+                   within their library (index-search.js). Stacked, the table has
+                   no headings to press, so the words stand alone. #}
+                {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Call number'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ 'Call number'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Call number'|t }}</th>{% endif %}
+                {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Status'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="status">{{ 'Status'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Status'|t }}</th>{% endif %}
                 <th role="columnheader" scope="col"><span class="visually-hidden">{{ 'Actions'|t }}</span></th>
               </tr>
             </thead>
@@ -108,7 +112,7 @@
                    it has no contents, its shelf is said again, muted, so the row is
                    whole; a stacked row leaves that out (index-search.scss). #}
                 {% for item in copy.items %}
-                  <tr role="row" class="pf-index-row__copy-item">
+                  <tr role="row" class="pf-index-row__copy-item" data-pf-index-available="{{ item.available ? 1 : 0 }}">
                     {% if item.contents %}
                       <td role="cell" class="pf-index-row__item-contents" colspan="3" data-label="{{ 'LSU has'|t }}">
                         {%- for line in item.contents -%}
@@ -121,7 +125,7 @@
                       <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Material type'|t }}">{{ copy.type }}</td>
                     {% endif %}
                     <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item.call_number }}</td>
-                    <td role="cell" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
+                    <td role="cell" class="pf-index-row__item-status" data-label="{{ 'Status'|t }}">{{ item.available ? (copy.reading_room ? 'Available to view'|t : 'Available'|t) : holdings.why(item) }}</td>
                     <td role="cell" class="pf-index-row__copy-actions">
                       {%- if item.request_url %}{{ holdings.out(item.request_url, 'Request to view'|t, item.call_number) }}{% endif -%}
                     </td>
