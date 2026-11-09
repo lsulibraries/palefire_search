@@ -126,7 +126,7 @@
           </table>
           {# Said once, however many boxes a record lists. #}
           {% if record.copies|filter(copy => copy.reading_room)|length %}
-            <p class="pf-index-row__copy-note">{{ 'Viewed in the Hill Memorial reading room.'|t }} <a href="/v2/special/guides/special-collections">{{ 'How requests work'|t }}</a></p>
+            <p class="pf-index-row__copy-note">{{ 'Viewed in the Hill Memorial reading room.'|t }} <a href="/v2/special/guides/special-collections" target="_blank" data-no-swup>{{ 'How requests work'|t }}<span class="visually-hidden"> {{ '(opens in a new tab)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
           {% endif %}
           <p class="pf-index-list__more" data-no-swup><a class="pf-index-rule__link" href="{{ record.url }}">{{ 'Full record'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span></a></p>
         </div>

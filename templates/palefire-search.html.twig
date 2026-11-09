@@ -153,19 +153,19 @@
               {%- else -%}
                 {{ '@total results for'|t({'@total': total|number_format}) }}
               {%- endif %} <span class="pf-index__term">“{{ query }}”</span></p>
+            {% if chips %}
+              <div class="pf-index__chips" data-no-swup>
+                <span class="visually-hidden" id="pf-index-chips">{{ 'Filters chosen'|t }}</span>
+                <ul role="list" aria-labelledby="pf-index-chips">
+                  {% for chip in chips %}
+                    <li><a class="pf-index__chip" href="{{ chip.url }}"><span class="visually-hidden">{{ 'Remove filter:'|t }} </span>{{ chip.label }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></a></li>
+                  {% endfor %}
+                </ul>
+                <a class="pf-index__clear" href="{{ clear_url }}">{{ 'Clear all'|t }}</a>
+              </div>
+            {% endif %}
             {% if sorts and not list_title %}{{ index.sort(sorts, sort) }}{% endif %}
           </div>
-          {% if chips %}
-            <div class="pf-index__chips" data-no-swup>
-              <span class="visually-hidden" id="pf-index-chips">{{ 'Filters chosen'|t }}</span>
-              <ul role="list" aria-labelledby="pf-index-chips">
-                {% for chip in chips %}
-                  <li><a class="pf-index__chip" href="{{ chip.url }}"><span class="visually-hidden">{{ 'Remove filter:'|t }} </span>{{ chip.label }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></a></li>
-                {% endfor %}
-              </ul>
-              <a class="pf-index__clear" href="{{ clear_url }}">{{ 'Clear all'|t }}</a>
-            </div>
-          {% endif %}
         {% endif %}
 
         {% for section in sections %}
