@@ -59,7 +59,7 @@
                    so the words stand alone. Copy numbers arrive when the table
                    opens (index-search.js). #}
                 <th role="columnheader" scope="col">{{ 'Library'|t }}</th>
-                <th role="columnheader" scope="col">{{ 'Material'|t }}</th>
+                <th role="columnheader" scope="col">{{ 'Type'|t }}</th>
                 {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Call number'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ 'Call number'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Call number'|t }}</th>{% endif %}
                 <th role="columnheader" scope="col">{{ 'Copy'|t }}</th>
                 <th role="columnheader" scope="col">{{ 'Shelf location'|t }}</th>
@@ -73,7 +73,7 @@
               {% for copy in record.copies %}
                 <tr role="row" class="pf-index-row__copy-row">
                   <td role="cell" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
-                  <td role="cell" data-label="{{ 'Material'|t }}">{{ copy.type }}</td>
+                  <td role="cell" data-label="{{ 'Type'|t }}">{{ copy.type }}</td>
                   <td role="cell" data-label="{{ 'Call number'|t }}">{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</td>
                   <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if copy.item_id %} data-pf-index-copy-of="{{ copy.item_id }}"{% endif %}></td>
                   <td role="cell" data-label="{{ 'Shelf location'|t }}">{{ copy.shelf }}{% if copy.floor %}<span class="pf-index-row__floor">{{ copy.floor }}</span>{% endif %}</td>
@@ -125,7 +125,7 @@
                       </td>
                     {% else %}
                       <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Library'|t }}">{{ copy.library }}</td>
-                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Material'|t }}">{{ copy.type }}</td>
+                      <td role="cell" class="pf-index-row__item-same" data-label="{{ 'Type'|t }}">{{ copy.type }}</td>
                     {% endif %}
                     <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}">{{ item.call_number }}</td>
                     <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if item.item_id %} data-pf-index-copy-of="{{ item.item_id }}"{% endif %}></td>
