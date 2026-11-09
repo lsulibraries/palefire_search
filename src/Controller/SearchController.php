@@ -460,7 +460,9 @@ class SearchController extends ControllerBase {
     }
     return $capped
       ? (string) $this->t('@count+ results', ['@count' => number_format($total)])
-      : (string) $this->formatPlural($total, '1 result', '@count results', ['@count' => number_format($total)]);
+      // formatPlural() sets @count to the bare number itself, so the formatted
+      // one goes in its own placeholder.
+      : (string) $this->formatPlural($total, '1 result', '@total results', ['@total' => number_format($total)]);
   }
 
   /**
