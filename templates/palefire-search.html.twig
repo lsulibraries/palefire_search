@@ -58,12 +58,17 @@
 <div class="pf-index" data-pf-index>
   <header class="pf-index__head">
     <p class="pf-index__kicker">{{ 'LSU Libraries'|t }}<span class="visually-hidden">, </span><span class="pf-index__kicker-place">{{ 'Search'|t }}</span></p>
-    <h1 class="pf-index__title">{{ 'Index'|t }}</h1>
+    <h1 class="pf-index__title">{{ 'Combined Search'|t }}</h1>
     <p class="pf-index__lede">{{ 'Search articles, databases, archives and library pages.'|t }}</p>
     <form class="pf-index__form" role="search" method="get" action="{{ action }}">
       <label class="visually-hidden" for="pf-index-q">{{ 'Search LSU Libraries'|t }}</label>
       <div class="pf-index__field">
-        <input class="pf-index__input" type="search" id="pf-index-q" name="q" value="{{ query }}" maxlength="128" autocomplete="off" enterkeyhint="search">
+        {# The clear button is the theme's (js/index-search.js shows it while
+           the field has words); without script it stays hidden. #}
+        <span class="pf-index__entry">
+          <input class="pf-index__input" type="search" id="pf-index-q" name="q" value="{{ query }}" maxlength="128" autocomplete="off" enterkeyhint="search">
+          <button class="pf-index__erase" type="button" data-pf-index-erase hidden><span class="visually-hidden">{{ 'Clear search'|t }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+        </span>
         {% if mode != 'all' %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
         <button class="pf-index__submit" type="submit">{{ 'Search'|t }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button>
       </div>

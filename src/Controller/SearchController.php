@@ -104,7 +104,7 @@ class SearchController extends ControllerBase {
    * The page title.
    */
   public function title(): string {
-    return (string) $this->t('Index');
+    return (string) $this->t('Combined Search');
   }
 
   /**

@@ -1,6 +1,6 @@
 # Palefire Search
 
-The Index: the search page at `/v2/search`, in the Palefire theme.
+Combined Search (working name "the Index"): the search page at `/v2/search`, in the Palefire theme.
 
 - **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
   E-Textbooks, PDF Finding Aids): direct Search API queries on the
