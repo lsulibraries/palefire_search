@@ -73,21 +73,21 @@ final class SearchSources {
       'special' => [
         'label' => 'Special Collections',
         'layout' => 'merged',
-        'sources' => ['catalog', 'archive', 'news_special'],
+        'sources' => ['catalog', 'archive'],
         // Shown above the merged list until a source is chosen: a merged list can't
         // hold an outside source. list_label names the list under it.
         'lead' => ['catalog'],
-        'list_label' => 'Archives and News',
+        'list_label' => 'PDF Finding Aids',
         // Oral histories is this mode's main filter, so it's always offered.
         'refine_sources' => ['archive'],
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
         // With the Catalog's Special Collections filter taken off, and none of
-        // its archives or news chosen, the search is a Research one: it moves
+        // its archives chosen, the search is a Research one: it moves
         // there with everything else it had.
         'unless' => [
           'refine' => ['catalog' => 'library_special'],
-          'sources' => ['archive', 'news_special'],
+          'sources' => ['archive'],
           'mode' => 'research',
         ],
         'upcoming' => ['alma'],
@@ -318,16 +318,6 @@ final class SearchSources {
           182 => 'Services',
           177 => 'Special Collections',
         ],
-      ],
-      'news_special' => [
-        'label' => 'News and Notes',
-        'about' => 'Stories and announcements from Special Collections.',
-        'images' => TRUE,
-        'kind' => 'local',
-        'types' => ['article'],
-        'article_categories' => [177],
-        'sorts' => self::DATE_SORTS,
-        'sort_field' => 'field_article_date',
       ],
       'staff' => [
         'label' => 'Staff',
