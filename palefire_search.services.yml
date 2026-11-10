@@ -20,3 +20,7 @@ services:
   palefire_search.journals:
     class: Drupal\palefire_search\JournalSearch
     arguments: ['@http_client', '@logger.factory']
+  palefire_search.page_cache_subscriber:
+    class: Drupal\palefire_search\EventSubscriber\SearchPageCacheSubscriber
+    tags:
+      - { name: event_subscriber }

@@ -2,6 +2,7 @@
 
 namespace Drupal\palefire_search\Controller;
 
+use Drupal\Core\Asset\AssetQueryStringInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\PageCache\ResponsePolicy\KillSwitch;
 use Drupal\Core\Pager\PagerManagerInterface;
@@ -85,6 +86,7 @@ class SearchController extends ControllerBase {
     private readonly PagerManagerInterface $pagerManager,
     private readonly RendererInterface $renderer,
     private readonly KillSwitch $killSwitch,
+    private readonly AssetQueryStringInterface $assetQueryString,
   ) {}
 
   /**
@@ -97,6 +99,7 @@ class SearchController extends ControllerBase {
       $container->get('pager.manager'),
       $container->get('renderer'),
       $container->get('page_cache_kill_switch'),
+      $container->get('asset.query_string'),
     );
   }
 
@@ -484,6 +487,11 @@ class SearchController extends ControllerBase {
               'refine' => array_map(static fn(string $option): string => $key . ':' . $option, $refines[$key] ?? []),
               ...(!empty($definition['year_filter']) ? $years : []),
               'rows' => $roomy ? 'more' : '',
+              // Kept for minutes by browsers and the page cache, so the address
+              // carries the asset token, which every cache clear changes: after a
+              // deploy and drush cr, no one gets a copy from the old code. The
+              // holdings address does the same. Nothing reads v.
+              'v' => $this->assetQueryString->get(),
             ]),
           ])->toString(),
           'full_url' => $this->address($mode_key, $query, [$key], array_intersect_key($refines, [$key => TRUE]), 'relevance', !empty($definition['year_filter']) ? $years : []),
@@ -587,7 +595,7 @@ class SearchController extends ControllerBase {
     $held = array_filter(array_column($results['items'], 'holdings_id'));
     $pdfs = array_filter(array_column($results['items'], 'archive_pdf'));
     if ($held || $pdfs) {
-      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => array_filter(['ids' => implode(',', $held), 'pdfs' => implode(',', $pdfs)])])->toString();
+      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => array_filter(['ids' => implode(',', $held), 'pdfs' => implode(',', $pdfs), 'v' => $this->assetQueryString->get()])])->toString();
     }
     // A service may find more than it will return. The total stays true and the
     // pager stops where the service does, which the last page explains.
