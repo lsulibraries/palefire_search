@@ -42,6 +42,12 @@ class CatalogSearch {
   private const RECORD = 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/detailnonmodal/';
 
   /**
+   * A record's hold page, up to its encoded ID: the catalog's sign-in, then
+   * the same form its Place Hold button opens.
+   */
+  private const HOLD = 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/placehold/';
+
+  /**
    * The most records the feed returns, however many it found.
    */
   private const MAX_RECORDS = 300;
@@ -528,8 +534,8 @@ class CatalogSearch {
         'map_library' => $physical && !$requested ? (self::MAP_LIBRARIES[$library] ?? ($libraries[$library] ?? '')) : '',
         'floor' => '',
         'map_url' => NULL,
-        // A hold needs the catalog's own sign-in and page, so this goes there.
-        'hold_url' => $physical && !$requested && $holdable ? $url : NULL,
+        // A hold needs the catalog's own sign-in, so this goes to its hold page.
+        'hold_url' => $physical && !$requested && $holdable ? ResultText::url(self::HOLD . 'ent:$002f$002fSD_LSU$002f0$002fSD_LSU:' . $id) : NULL,
         'request_url' => $physical && $requested && !$listed ? $this->requestUrl($id, $type, $home, $shelf, $first_call, $about) : NULL,
         'reading_room' => $physical && $requested,
         'items' => $items,
