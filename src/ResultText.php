@@ -85,6 +85,20 @@ final class ResultText {
   }
 
   /**
+   * A finding aid's or oral history abstract's PDF on this site, as a site path,
+   * or NULL for any other address.
+   *
+   * Links to them may name http:// or www. The path keeps its own encoding,
+   * such as %20 for a space.
+   */
+  public static function archivePdf(string $url): ?string {
+    if (!preg_match('#^(?:https?://(?:www\.)?lib\.lsu\.edu)?(/sites/(?:default/files/sc/findaid|all/files/oralhistory)/[^?\#"<>,\\\\]+\.pdf)$#i', trim($url), $match)) {
+      return NULL;
+    }
+    return str_contains($match[1], '..') ? NULL : $match[1];
+  }
+
+  /**
    * An address that's safe in an href: web addresses and site paths only.
    */
   public static function url(string $url): string {

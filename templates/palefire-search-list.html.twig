@@ -9,11 +9,11 @@
  * - total: how many results, or NULL when the source couldn't be reached.
  * - count: total as words ("300+ results"), empty when it's NULL.
  * - items: [title, url, external, summary, excerpt, pdf, pdf_url, meta, source, type, full_text_url,
- *   image, image_url, login, holdings_id, finding_aid]. pdf is [pages, size] for a PDF on this site;
+ *   image, image_url, login, holdings_id, archive_pdf]. pdf is [pages, size] for a PDF on this site;
  *   pages is empty when the file couldn't be read for them. pdf_url is a
- *   Catalog record's finding aid. holdings_id holds a place for where
- *   the record's copies are, which loads after the list; finding_aid does the
- *   same for the Catalog record that links that finding aid. type says what the
+ *   Catalog record's finding aid or oral history abstract. holdings_id holds a place for where
+ *   the record's copies are, which loads after the list; archive_pdf does the
+ *   same for the Catalog record that links that finding aid or abstract. type says what the
  *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
@@ -134,10 +134,10 @@
           {% elseif item.image_url %}
             <div class="pf-index-row__thumb pf-index-row__thumb--cover"><img src="{{ item.image_url }}" alt="" width="88" height="110" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>
           {% endif %}
-          {# A finding aid's place is named by its file: its Catalog record is
-             found when the holdings load. #}
-          {% if item.holdings_id or item.finding_aid %}
-            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id ?: 'findaid-' ~ item.finding_aid }}"></div>
+          {# A finding aid's or abstract's place is named by its PDF: its
+             Catalog record is found when the holdings load. #}
+          {% if item.holdings_id or item.archive_pdf %}
+            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id ?: 'pdf:' ~ item.archive_pdf }}"></div>
           {% endif %}
         </li>
       {% endfor %}

@@ -250,17 +250,18 @@ class SearchController extends ControllerBase {
   public function holdings(Request $request): Response {
     $parameters = $request->query->all();
     $ids = $this->listed($parameters['ids'] ?? NULL, '/^\d{1,10}$/');
-    // A finding aid's copies are its Catalog record's, found by its file name.
-    $aids = $this->listed($parameters['aids'] ?? NULL, '/^[\w-]{1,40}$/');
-    $records_for = $aids ? $this->external->findingAidRecords($aids) : [];
+    // A finding aid's or oral history's copies are its Catalog record's, found
+    // by its PDF's path.
+    $pdfs = array_values(array_filter($this->listed($parameters['pdfs'] ?? NULL, '#^/sites/#'), static fn(string $path): bool => ResultText::archivePdf($path) === $path));
+    $records_for = $pdfs ? $this->external->archivePdfRecords($pdfs) : [];
     $wanted = array_values(array_unique([...$ids, ...array_filter($records_for)]));
     $holdings = $this->external->catalogHoldings(array_slice($wanted, 0, self::LIST_LIMIT * 2));
 
-    // The same record again for each finding aid's row, under the aid's name.
+    // The same record again for each PDF's row, under the PDF's path.
     $records = array_intersect_key($holdings ?? [], array_flip($ids));
-    foreach ($records_for as $file => $id) {
+    foreach ($records_for as $path => $id) {
       if ($id && isset($holdings[$id])) {
-        $records['findaid-' . $file] = ['key' => 'findaid-' . $file] + $holdings[$id];
+        $records['pdf:' . $path] = ['key' => 'pdf:' . $path] + $holdings[$id];
       }
     }
 
@@ -556,9 +557,9 @@ class SearchController extends ControllerBase {
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
     $held = array_filter(array_column($results['items'], 'holdings_id'));
-    $aids = array_filter(array_column($results['items'], 'finding_aid'));
-    if ($held || $aids) {
-      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => array_filter(['ids' => implode(',', $held), 'aids' => implode(',', $aids)])])->toString();
+    $pdfs = array_filter(array_column($results['items'], 'archive_pdf'));
+    if ($held || $pdfs) {
+      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => array_filter(['ids' => implode(',', $held), 'pdfs' => implode(',', $pdfs)])])->toString();
     }
     // A service may find more than it will return. The total stays true and the
     // pager stops where the service does, which the last page explains.

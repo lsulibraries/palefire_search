@@ -70,8 +70,8 @@ class LocalSearch {
    *   total, and items: [title, url, external, summary, excerpt, pdf, meta,
    *   source, image, image_url, details]. details is a list with one entry per copy of
    *   an E-Textbook. excerpt: an archive record's words around the match. pdf: [pages, size]
-   *   when an archive record links to a PDF on this site. finding_aid: the
-   *   file name of a finding aid's PDF, without .pdf.
+   *   when an archive record links to a PDF on this site. archive_pdf: the
+   *   site path of a finding aid's or oral history abstract's PDF.
    */
   public function search(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
     if ($this->listsBooks($source_keys)) {
@@ -498,8 +498,8 @@ class LocalSearch {
       'summary' => ResultText::highlight(!empty($this->sourceOf($node, $source_keys)['whole_summary']) ? ResultText::paragraphs($summary) : ResultText::summary($summary), $words),
       'excerpt' => $node->bundle() === 'archive_record' ? $this->excerpt($excerpt, $words) : '',
       'pdf' => $node->bundle() === 'archive_record' ? $this->pdfFacts->forUrl($url) : [],
-      // A finding aid's file name, which finds its Catalog record and copies.
-      'finding_aid' => $node->bundle() === 'archive_record' && preg_match('#^(?:https?://(?:www\.)?lib\.lsu\.edu)?/sites/default/files/sc/findaid/([\w-]{1,40})\.pdf$#i', $url, $file) ? $file[1] : NULL,
+      // A finding aid's or abstract's PDF, which finds its Catalog record.
+      'archive_pdf' => $node->bundle() === 'archive_record' ? ResultText::archivePdf($url) : NULL,
       'meta' => ResultText::clean($meta),
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,

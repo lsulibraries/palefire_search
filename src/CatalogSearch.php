@@ -59,9 +59,9 @@ class CatalogSearch {
   private const KEEP = 3600;
 
   /**
-   * Where a finding aid's catalog record is kept, up to its file name.
+   * Where an archive PDF's catalog record is kept, up to its path's hash.
    */
-  private const AID_KEY = 'palefire_search:catalog_finding_aid:';
+  private const AID_KEY = 'palefire_search:catalog_archive_pdf:';
 
   /**
    * The web service's address, and the public ID the catalog's own pages use.
@@ -955,7 +955,7 @@ class CatalogSearch {
       ])),
       'type' => ResultText::clean($fields['Format'] ?? ''),
       'full_text_url' => $this->fullText($fields['Electronic Access'] ?? ''),
-      'pdf_url' => $this->findingAid($fields['Electronic Access'] ?? ''),
+      'pdf_url' => $this->archivePdf($fields['Electronic Access'] ?? ''),
       'holdings_id' => preg_match('#:(\d+)$#', $id, $match) ? $match[1] : NULL,
     ];
   }
@@ -983,40 +983,49 @@ class CatalogSearch {
   }
 
   /**
-   * The catalog record for each of these finding aids, by file name.
+   * The catalog record for each of these archive PDFs, by its path.
    *
-   * A record names its finding aid's PDF under Electronic Access, and the feed
-   * finds it by "findaid" and the file's name. Only a record that links that
-   * very file counts. The searches run at once, each answer is kept for a day,
-   * and a finding aid with no record for an hour, in case one is added.
+   * A record links its finding aid ("Finding aid:") or oral history abstract
+   * ("Abstract:") under Electronic Access. The feed finds a finding aid by
+   * "findaid" and its file's name, and an abstract by "oralhistory" and its
+   * first tape number (T3498), or else its file's name, which the feed can't
+   * match when it holds a space. Only a record that links that very file
+   * counts. The searches run at once, each answer is kept for a day, and a PDF
+   * with no record for an hour, in case one is added.
    *
-   * @param string[] $files
-   *   File names without .pdf, such as 3824 or 0893m.
+   * @param string[] $paths
+   *   Site paths from ResultText::archivePdf().
    *
    * @return array
-   *   Each file's record ID, '' with no record, or NULL if the feed couldn't be
+   *   Each path's record ID, '' with no record, or NULL if the feed couldn't be
    *   read for it.
    */
-  public function findingAidRecords(array $files): array {
+  public function archivePdfRecords(array $paths): array {
     $found = [];
     $asked = [];
-    foreach (array_unique($files) as $file) {
-      $file = (string) $file;
-      $kept = $this->cache->get(self::AID_KEY . $file);
+    foreach (array_unique($paths) as $path) {
+      $kept = $this->cache->get($this->pdfKey($path));
       if ($kept) {
-        $found[$file] = $kept->data;
+        $found[$path] = $kept->data;
         continue;
       }
-      $found[$file] = NULL;
-      $asked[$file] = $this->client->requestAsync('GET', self::FEED . rawurlencode('findaid ' . $file), [
+      $found[$path] = NULL;
+      $name = rawurldecode(basename($path));
+      $terms = match (TRUE) {
+        str_contains($path, '/findaid/') => 'findaid ' . basename($name, '.pdf'),
+        (bool) preg_match('/(?<![A-Za-z0-9])T\d+/', $name, $tape) => 'oralhistory ' . $tape[0],
+        default => $name,
+      };
+      // As in search(): these would break the feed's address.
+      $terms = trim(preg_replace('#[/\\\\?\#%$]+#u', ' ', $terms) ?? '');
+      $asked[$path] = $this->client->requestAsync('GET', self::FEED . rawurlencode($terms), [
         'connect_timeout' => 5,
         'timeout' => self::SERVICE_TIMEOUT,
         'http_errors' => FALSE,
         'headers' => ['User-Agent' => 'LSU Libraries search'],
       ]);
     }
-    foreach (Utils::settle($asked)->wait() as $file => $answer) {
-      $file = (string) $file;
+    foreach (Utils::settle($asked)->wait() as $path => $answer) {
       $response = $answer['value'] ?? NULL;
       $records = $response && $response->getStatusCode() === 200 ? $this->parseFeed((string) $response->getBody()) : NULL;
       if ($records === NULL) {
@@ -1024,25 +1033,48 @@ class CatalogSearch {
       }
       $id = '';
       foreach ($records as $record) {
-        if ($record['holdings_id'] && $record['pdf_url'] !== NULL && strcasecmp(basename($record['pdf_url'], '.pdf'), $file) === 0) {
+        if ($record['holdings_id'] && $record['pdf_url'] !== NULL && $this->samePath($record['pdf_url'], $path)) {
           $id = $record['holdings_id'];
           break;
         }
       }
-      $found[$file] = $id;
-      $this->cache->set(self::AID_KEY . $file, $id, time() + ($id === '' ? self::KEEP : self::NAMES_KEEP));
+      $found[$path] = $id;
+      $this->cache->set($this->pdfKey($path), $id, time() + ($id === '' ? self::KEEP : self::NAMES_KEEP));
     }
     return $found;
   }
 
   /**
-   * The address of a record's finding aid on this site, or NULL.
-   *
-   * Records write it as "Finding aid:" and a link, often to http://www.
+   * Whether two site paths name the same file, however each is encoded.
    */
-  private function findingAid(string $access): ?string {
+  private function samePath(string $a, string $b): bool {
+    return mb_strtolower(rawurldecode($a)) === mb_strtolower(rawurldecode($b));
+  }
+
+  /**
+   * Where an archive PDF's record is kept.
+   */
+  private function pdfKey(string $path): string {
+    return self::AID_KEY . hash('sha256', mb_strtolower(rawurldecode($path)));
+  }
+
+  /**
+   * The finding aid or oral history abstract a record links, as a site path,
+   * or NULL.
+   *
+   * Records write it as "Finding aid:" or "Abstract:" and a link, often to
+   * http://www.
+   */
+  private function archivePdf(string $access): ?string {
     $access = html_entity_decode($access, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    return preg_match('#href="(?:https?://(?:www\.)?lib\.lsu\.edu)?(/sites/default/files/sc/findaid/[\w.-]+\.pdf)"#i', $access, $match) ? $match[1] : NULL;
+    preg_match_all('#href="([^"]+)"#i', $access, $links);
+    foreach ($links[1] as $link) {
+      $path = ResultText::archivePdf($link);
+      if ($path !== NULL) {
+        return $path;
+      }
+    }
+    return NULL;
   }
 
   /**

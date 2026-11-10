@@ -10,7 +10,8 @@ use Drupal\views\Views;
  *
  * Discovery has its own class, for the filters its View can't pass, the
  * Catalog has one for its feed, and Journals one for the titles and years
- * Discovery's service holds. Research
+ * Discovery's service holds. A tag's guides, such as Special Collections
+ * Guides, come from the guides site's own search. Research
  * Guides runs its View for the data and ignores the markup. The connector
  * modules (eds, libguides) keep the credentials and the calls.
  */
@@ -20,6 +21,7 @@ class ExternalSearch {
     private readonly DiscoverySearch $discovery,
     private readonly CatalogSearch $catalog,
     private readonly JournalSearch $journals,
+    private readonly GuideSearch $taggedGuides,
     private readonly PdfFacts $pdfFacts,
   ) {}
 
@@ -59,7 +61,7 @@ class ExternalSearch {
       // Journals is Discovery's service, so it reads the same operators.
       'discovery', 'journals' => SearchTerms::forDiscovery($query),
       // Words and phrases only: the Catalog's feed reads AND and NOT as words.
-      'guides', 'catalog' => SearchTerms::forGuides($query),
+      'guides', 'tagged_guides', 'catalog' => SearchTerms::forGuides($query),
       default => $query,
     };
     if ($terms === '') {
@@ -70,11 +72,12 @@ class ExternalSearch {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
+      'tagged_guides' => $this->taggedGuides->search($terms, $source['tag_id'], $page, $limit),
       default => $this->guidesResults($source, $terms, $page, $limit),
     };
 
     // Some services can't honor operators, and the page says so.
-    $results['simplified'] = in_array($source['adapter'], ['guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
+    $results['simplified'] = in_array($source['adapter'], ['guides', 'tagged_guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
 
     $words = SearchSources::indexableWords($query);
     $results['items'] = array_map(fn(array $item): array => $this->shown($item, $words), $results['items']);
@@ -95,18 +98,18 @@ class ExternalSearch {
     $item['meta'] = ResultText::clean($item['meta']);
     $item['external'] = TRUE;
     $item['source'] = NULL;
-    // A Catalog record's finding aid is a PDF on this site, as long as one
-    // listed under PDF Finding Aids.
+    // A Catalog record's finding aid or oral history abstract is a PDF on this
+    // site, as long as one listed under PDF Finding Aids.
     $item['pdf'] = !empty($item['pdf_url']) ? $this->pdfFacts->forUrl($item['pdf_url']) : [];
     return $item;
   }
 
   /**
-   * The Catalog record for each finding aid, by its file name. See
-   * CatalogSearch::findingAidRecords().
+   * The Catalog record for each finding aid or oral history abstract, by its
+   * PDF's path. See CatalogSearch::archivePdfRecords().
    */
-  public function findingAidRecords(array $files): array {
-    return $this->catalog->findingAidRecords($files);
+  public function archivePdfRecords(array $paths): array {
+    return $this->catalog->archivePdfRecords($paths);
   }
 
   /**

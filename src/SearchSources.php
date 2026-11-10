@@ -74,10 +74,10 @@ final class SearchSources {
       'special' => [
         'label' => 'Special Collections',
         'layout' => 'merged',
-        'sources' => ['catalog', 'archive'],
+        'sources' => ['catalog', 'special_guides', 'archive'],
         // Shown above the merged list until a source is chosen: a merged list can't
         // hold an outside source. list_label names the list under it.
-        'lead' => ['catalog'],
+        'lead' => ['catalog', 'special_guides'],
         'list_label' => 'PDF Finding Aids',
         // Oral histories is this mode's main filter, so it's always offered.
         'refine_sources' => ['archive'],
@@ -88,7 +88,7 @@ final class SearchSources {
         // there with everything else it had.
         'unless' => [
           'refine' => ['catalog' => 'library_special'],
-          'sources' => ['archive'],
+          'sources' => ['archive', 'special_guides'],
           'mode' => 'research',
         ],
         'upcoming' => ['alma'],
@@ -155,6 +155,20 @@ final class SearchSources {
         'adapter' => 'guides',
         'more_label' => 'See all research guides',
         'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q',
+      ],
+      // The research guides tagged Special Collections, from the guides site's
+      // own search (GuideSearch), so a guide joins as soon as it's tagged.
+      'special_guides' => [
+        'label' => 'Special Collections Guides',
+        'about' => 'Librarians’ guides to Special Collections’ holdings and to researching a subject in them: a subset of Research Guides.',
+        'kind' => 'external',
+        'adapter' => 'tagged_guides',
+        // The guides site's ID for its Special Collections tag.
+        'tag_id' => 536193,
+        // Its full list is on this page: go there, not away.
+        'lists_here' => TRUE,
+        'more_label' => 'See all Special Collections guides',
+        'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q&tag=Special+Collections&default_lg=1',
       ],
       'repository' => [
         'label' => 'LSU Scholarship',
