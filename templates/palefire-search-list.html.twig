@@ -79,8 +79,15 @@
                 <span class="pf-index-row__pdf">{% if pages %}{% trans %}{{ pages }} page{% plural pages %}{{ pages }} pages{% endtrans %} · {% endif %}{{ item.pdf.size }}</span>
               {%- endif %}</p>
           {% endif %}
+          {# Read online: the same button as Open PDF, with the arrow that
+             leaves the site. A catalog record says it's available online
+             beside it, as a print record's status sits beside Show location,
+             and its holdings then leave that line out. #}
           {% if item.full_text_url %}
-            <p class="pf-index-row__links"><a href="{{ item.full_text_url }}">{{ 'Full text'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a></p>
+            <p class="pf-index-row__open pf-index-row__open--online"><a class="pf-button--secondary" href="{{ item.full_text_url }}">{{ 'Open online'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(another site)'|t }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+              {%- if item.holdings_id %}
+                <span class="pf-index-row__status">{{ 'Available online'|t }}</span>
+              {%- endif %}</p>
           {% endif %}
           {% if item.details %}
             <details class="pf-index-row__details">

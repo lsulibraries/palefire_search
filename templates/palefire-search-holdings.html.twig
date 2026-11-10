@@ -27,7 +27,7 @@
   {% set whole_call = first_call ? (only.general_call ?: (only.call_count > 1 ? '@call + @count more'|t({'@call': first_call, '@count': only.call_count - 1}))) %}
   <div data-pf-index-holdings-for="{{ record.id }}"{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
     {% if record.state == 'online' and record.more == 0 %}
-      <p class="pf-index-row__holdings-line"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
+      <p class="pf-index-row__holdings-line pf-index-row__holdings-line--online"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
     {% else %}
       <details class="pf-index-row__details" data-pf-index-copies="{{ path('palefire_search.copies', {}, {'query': {'id': record.id}}) }}">
         <summary>
