@@ -87,10 +87,13 @@
           {# A record that is a PDF: a button as clear as a catalog row's Show
              location. A new tab, so the results stay where they were. Its length
              beside it, so it's plain what opening it means. #}
-          {# A Catalog record with a finding aid opens it the same way. #}
+          {# A Catalog record with a finding aid or abstract opens it the same
+             way, named for what it is, so it isn't taken for the item itself
+             in digital form. #}
           {% set pdf_url = item.pdf_url ?: (item.url ends with '.pdf' ? item.url) %}
           {% if pdf_url %}
-            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ pdf_url }}" target="_blank" data-no-swup>{{ 'Open PDF'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span>{% set pdf_icon = source('libraries/fontawesome-pro/svgs/duotone/file-pdf.svg', ignore_missing = true) %}{% if pdf_icon %}<span class="pf-index-row__pdf-icon" aria-hidden="true">{{ pdf_icon|raw }}</span>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>{% endif %}</a>
+            {% set pdf_label = not item.pdf_url ? 'Open PDF'|t : ('/oralhistory/' in item.pdf_url ? 'PDF Abstract'|t : 'PDF Finding Aid'|t) %}
+            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ pdf_url }}" target="_blank" data-no-swup>{{ pdf_label }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span>{% set pdf_icon = source('libraries/fontawesome-pro/svgs/duotone/file-pdf.svg', ignore_missing = true) %}{% if pdf_icon %}<span class="pf-index-row__pdf-icon" aria-hidden="true">{{ pdf_icon|raw }}</span>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>{% endif %}</a>
               {%- if item.pdf.size %}
                 {% set pages = item.pdf.pages %}
                 <span class="pf-index-row__pdf">{% if pages %}{% trans %}{{ pages }} page{% plural pages %}{{ pages }} pages{% endtrans %} · {% endif %}{{ item.pdf.size }}</span>
