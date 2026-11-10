@@ -20,6 +20,7 @@ class ExternalSearch {
     private readonly DiscoverySearch $discovery,
     private readonly CatalogSearch $catalog,
     private readonly JournalSearch $journals,
+    private readonly PdfFacts $pdfFacts,
   ) {}
 
   /**
@@ -46,7 +47,8 @@ class ExternalSearch {
    * @return array
    *   total, reachable (when fewer can be paged to), capped (when there may be
    *   more than the total), failed, and items: [title,
-   *   url, external, summary, meta, source, type, full_text_url, image_url,
+   *   url, external, summary, meta, source, type, full_text_url, pdf_url (a
+   *   Catalog record's finding aid), pdf, image_url,
    *   holdings_id, and for a journal coverage and coverage_more]. backup is
    *   TRUE when a stand-in service answered. journal is the journal whose name
    *   is the search, when Discovery offers one, as a row.
@@ -93,7 +95,18 @@ class ExternalSearch {
     $item['meta'] = ResultText::clean($item['meta']);
     $item['external'] = TRUE;
     $item['source'] = NULL;
+    // A Catalog record's finding aid is a PDF on this site, as long as one
+    // listed under PDF Finding Aids.
+    $item['pdf'] = !empty($item['pdf_url']) ? $this->pdfFacts->forUrl($item['pdf_url']) : [];
     return $item;
+  }
+
+  /**
+   * The Catalog record for each finding aid, by its file name. See
+   * CatalogSearch::findingAidRecords().
+   */
+  public function findingAidRecords(array $files): array {
+    return $this->catalog->findingAidRecords($files);
   }
 
   /**

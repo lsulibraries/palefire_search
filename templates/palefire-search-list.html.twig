@@ -8,10 +8,12 @@
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
  * - count: total as words ("300+ results"), empty when it's NULL.
- * - items: [title, url, external, summary, excerpt, pdf, meta, source, type, full_text_url,
- *   image, image_url, login, holdings_id]. pdf is [pages, size] for a PDF on this site;
- *   pages is empty when the file couldn't be read for them. holdings_id holds a place for where
- *   the record's copies are, which loads after the list. type says what the
+ * - items: [title, url, external, summary, excerpt, pdf, pdf_url, meta, source, type, full_text_url,
+ *   image, image_url, login, holdings_id, finding_aid]. pdf is [pages, size] for a PDF on this site;
+ *   pages is empty when the file couldn't be read for them. pdf_url is a
+ *   Catalog record's finding aid. holdings_id holds a place for where
+ *   the record's copies are, which loads after the list; finding_aid does the
+ *   same for the Catalog record that links that finding aid. type says what the
  *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
@@ -85,8 +87,10 @@
           {# A record that is a PDF: a button as clear as a catalog row's Show
              location. A new tab, so the results stay where they were. Its length
              beside it, so it's plain what opening it means. #}
-          {% if item.url ends with '.pdf' %}
-            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ item.url }}" target="_blank" data-no-swup>{{ 'Open PDF'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span>{% set pdf_icon = source('libraries/fontawesome-pro/svgs/duotone/file-pdf.svg', ignore_missing = true) %}{% if pdf_icon %}<span class="pf-index-row__pdf-icon" aria-hidden="true">{{ pdf_icon|raw }}</span>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>{% endif %}</a>
+          {# A Catalog record with a finding aid opens it the same way. #}
+          {% set pdf_url = item.pdf_url ?: (item.url ends with '.pdf' ? item.url) %}
+          {% if pdf_url %}
+            <p class="pf-index-row__open"><a class="pf-button--secondary" href="{{ pdf_url }}" target="_blank" data-no-swup>{{ 'Open PDF'|t }}<span class="visually-hidden">: {{ item.title|striptags }} {{ '(opens in a new tab)'|t }}</span>{% set pdf_icon = source('libraries/fontawesome-pro/svgs/duotone/file-pdf.svg', ignore_missing = true) %}{% if pdf_icon %}<span class="pf-index-row__pdf-icon" aria-hidden="true">{{ pdf_icon|raw }}</span>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>{% endif %}</a>
               {%- if item.pdf.size %}
                 {% set pages = item.pdf.pages %}
                 <span class="pf-index-row__pdf">{% if pages %}{% trans %}{{ pages }} page{% plural pages %}{{ pages }} pages{% endtrans %} · {% endif %}{{ item.pdf.size }}</span>
@@ -130,8 +134,10 @@
           {% elseif item.image_url %}
             <div class="pf-index-row__thumb pf-index-row__thumb--cover"><img src="{{ item.image_url }}" alt="" width="88" height="110" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>
           {% endif %}
-          {% if item.holdings_id %}
-            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id }}"></div>
+          {# A finding aid's place is named by its file: its Catalog record is
+             found when the holdings load. #}
+          {% if item.holdings_id or item.finding_aid %}
+            <div class="pf-index-row__holdings" data-pf-index-holdings="{{ item.holdings_id ?: 'findaid-' ~ item.finding_aid }}"></div>
           {% endif %}
         </li>
       {% endfor %}

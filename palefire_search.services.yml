@@ -7,7 +7,7 @@ services:
     arguments: ['@cache.default', '%app.root%']
   palefire_search.external:
     class: Drupal\palefire_search\ExternalSearch
-    arguments: ['@palefire_search.discovery', '@palefire_search.catalog', '@palefire_search.journals']
+    arguments: ['@palefire_search.discovery', '@palefire_search.catalog', '@palefire_search.journals', '@palefire_search.pdf_facts']
   palefire_search.catalog:
     class: Drupal\palefire_search\CatalogSearch
     arguments: ['@http_client', '@logger.factory', '@cache.default']

@@ -6,6 +6,7 @@ use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Promise\Utils;
 
 /**
  * Searches the Catalog through its public results feed and results page.
@@ -58,6 +59,11 @@ class CatalogSearch {
   private const KEEP = 3600;
 
   /**
+   * Where a finding aid's catalog record is kept, up to its file name.
+   */
+  private const AID_KEY = 'palefire_search:catalog_finding_aid:';
+
+  /**
    * The web service's address, and the public ID the catalog's own pages use.
    */
   private const SERVICE = 'https://lalu.sirsi.net/lalu_ilsws/rest/';
@@ -85,6 +91,12 @@ class CatalogSearch {
   private const REQUEST_LIBRARY = 'SPEC_COLL';
   private const REQUEST_FORM = 'https://specialcollections.lib.lsu.edu/Logon/?Action=10&Form=20&';
   private const REMOTE_STORAGE = 'LAREMOTE';
+
+  /**
+   * The item type of archives and manuscripts, whose numbers say where on the
+   * shelves a box stands.
+   */
+  private const ARCHIVE_TYPE = 'ARCH-MSS';
 
   /**
    * How long availability is kept, in seconds, and names of places.
@@ -414,6 +426,7 @@ class CatalogSearch {
    *   id; state: available, online, out or listed (held, with no copy to check);
    *   place, reason and due for the first entry; more, how many other entries;
    *   title; url, the record's page; and copies, each [library, shelf, type,
+   *   stack_location (its numbers are places on the shelves, not call numbers),
    *   call_number (empty where items have their own and nothing covers them all),
    *   general_call, call_count, call_more, first_call, map_library, floor,
    *   map_url, has (lines, less any an item took as its contents),
@@ -524,6 +537,8 @@ class CatalogSearch {
         'library_more' => $name[1],
         'shelf' => $shelf,
         'type' => $type,
+        // An archive's boxes are found by where they stand, not by subject.
+        'stack_location' => $found['type'] === self::ARCHIVE_TYPE,
         'call_number' => $whole ?: ($several ? '' : implode(', ', array_slice($calls, 0, 3))),
         'general_call' => $whole,
         // A shelf with one item: its copy number goes on the shelf's own row.
@@ -725,6 +740,7 @@ class CatalogSearch {
         ])),
         'type' => self::KINDS[$hit['materialType'] ?? ''] ?? '',
         'full_text_url' => NULL,
+        'pdf_url' => NULL,
         'holdings_id' => $id,
       ];
     }
@@ -786,9 +802,17 @@ class CatalogSearch {
     }
 
     $body = $this->fetch(self::FEED . $address);
-    if ($body === NULL) {
-      return NULL;
+    $records = $body === NULL ? NULL : $this->parseFeed($body);
+    if ($records !== NULL) {
+      $this->cache->set($key, $records, time() + self::KEEP);
     }
+    return $records;
+  }
+
+  /**
+   * A feed's rows, or NULL if it couldn't be read.
+   */
+  private function parseFeed(string $body): ?array {
     // The feed is sent as a web page, so its host adds a script after the end,
     // which a strict reader rejects. The feed itself ends at its closing tag.
     $end = strrpos($body, '</feed>');
@@ -810,7 +834,6 @@ class CatalogSearch {
         $records[] = $record;
       }
     }
-    $this->cache->set($key, $records, time() + self::KEEP);
     return $records;
   }
 
@@ -932,6 +955,7 @@ class CatalogSearch {
       ])),
       'type' => ResultText::clean($fields['Format'] ?? ''),
       'full_text_url' => $this->fullText($fields['Electronic Access'] ?? ''),
+      'pdf_url' => $this->findingAid($fields['Electronic Access'] ?? ''),
       'holdings_id' => preg_match('#:(\d+)$#', $id, $match) ? $match[1] : NULL,
     ];
   }
@@ -956,6 +980,69 @@ class CatalogSearch {
       }
     }
     return $fields;
+  }
+
+  /**
+   * The catalog record for each of these finding aids, by file name.
+   *
+   * A record names its finding aid's PDF under Electronic Access, and the feed
+   * finds it by "findaid" and the file's name. Only a record that links that
+   * very file counts. The searches run at once, each answer is kept for a day,
+   * and a finding aid with no record for an hour, in case one is added.
+   *
+   * @param string[] $files
+   *   File names without .pdf, such as 3824 or 0893m.
+   *
+   * @return array
+   *   Each file's record ID, '' with no record, or NULL if the feed couldn't be
+   *   read for it.
+   */
+  public function findingAidRecords(array $files): array {
+    $found = [];
+    $asked = [];
+    foreach (array_unique($files) as $file) {
+      $file = (string) $file;
+      $kept = $this->cache->get(self::AID_KEY . $file);
+      if ($kept) {
+        $found[$file] = $kept->data;
+        continue;
+      }
+      $found[$file] = NULL;
+      $asked[$file] = $this->client->requestAsync('GET', self::FEED . rawurlencode('findaid ' . $file), [
+        'connect_timeout' => 5,
+        'timeout' => self::SERVICE_TIMEOUT,
+        'http_errors' => FALSE,
+        'headers' => ['User-Agent' => 'LSU Libraries search'],
+      ]);
+    }
+    foreach (Utils::settle($asked)->wait() as $file => $answer) {
+      $file = (string) $file;
+      $response = $answer['value'] ?? NULL;
+      $records = $response && $response->getStatusCode() === 200 ? $this->parseFeed((string) $response->getBody()) : NULL;
+      if ($records === NULL) {
+        continue;
+      }
+      $id = '';
+      foreach ($records as $record) {
+        if ($record['holdings_id'] && $record['pdf_url'] !== NULL && strcasecmp(basename($record['pdf_url'], '.pdf'), $file) === 0) {
+          $id = $record['holdings_id'];
+          break;
+        }
+      }
+      $found[$file] = $id;
+      $this->cache->set(self::AID_KEY . $file, $id, time() + ($id === '' ? self::KEEP : self::NAMES_KEEP));
+    }
+    return $found;
+  }
+
+  /**
+   * The address of a record's finding aid on this site, or NULL.
+   *
+   * Records write it as "Finding aid:" and a link, often to http://www.
+   */
+  private function findingAid(string $access): ?string {
+    $access = html_entity_decode($access, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return preg_match('#href="(?:https?://(?:www\.)?lib\.lsu\.edu)?(/sites/default/files/sc/findaid/[\w.-]+\.pdf)"#i', $access, $match) ? $match[1] : NULL;
   }
 
   /**

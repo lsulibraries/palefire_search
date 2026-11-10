@@ -248,19 +248,40 @@ class SearchController extends ControllerBase {
    * which Drupal's page cache leaves alone, so it can stay this fresh.
    */
   public function holdings(Request $request): Response {
-    $ids = $request->query->all()['ids'] ?? NULL;
-    $ids = is_string($ids) ? array_filter(explode(',', $ids), static fn(string $id): bool => (bool) preg_match('/^\d{1,10}$/', $id)) : [];
-    $holdings = $this->external->catalogHoldings(array_slice(array_values(array_unique($ids)), 0, self::LIST_LIMIT));
+    $parameters = $request->query->all();
+    $ids = $this->listed($parameters['ids'] ?? NULL, '/^\d{1,10}$/');
+    // A finding aid's copies are its Catalog record's, found by its file name.
+    $aids = $this->listed($parameters['aids'] ?? NULL, '/^[\w-]{1,40}$/');
+    $records_for = $aids ? $this->external->findingAidRecords($aids) : [];
+    $wanted = array_values(array_unique([...$ids, ...array_filter($records_for)]));
+    $holdings = $this->external->catalogHoldings(array_slice($wanted, 0, self::LIST_LIMIT * 2));
 
-    $build = ['#theme' => 'palefire_search_holdings', '#records' => $holdings ?? []];
+    // The same record again for each finding aid's row, under the aid's name.
+    $records = array_intersect_key($holdings ?? [], array_flip($ids));
+    foreach ($records_for as $file => $id) {
+      if ($id && isset($holdings[$id])) {
+        $records['findaid-' . $file] = ['key' => 'findaid-' . $file] + $holdings[$id];
+      }
+    }
+
+    $build = ['#theme' => 'palefire_search_holdings', '#records' => $records];
     $response = new Response((string) $this->renderer->renderInIsolation($build));
-    if ($holdings === NULL) {
+    if ($holdings === NULL || in_array(NULL, $records_for, TRUE)) {
       $this->applyExternalCaching($response, TRUE);
       return $response;
     }
     $response->setPublic();
     $response->setMaxAge(self::HOLDINGS_MAX_AGE);
     return $response;
+  }
+
+  /**
+   * A comma-separated list from the address: the values that fit, once each,
+   * at most a page's worth.
+   */
+  private function listed(mixed $value, string $pattern): array {
+    $values = is_string($value) ? array_filter(explode(',', $value), static fn(string $one): bool => (bool) preg_match($pattern, $one)) : [];
+    return array_slice(array_values(array_unique($values)), 0, self::LIST_LIMIT);
   }
 
   /**
@@ -535,8 +556,9 @@ class SearchController extends ControllerBase {
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
     $held = array_filter(array_column($results['items'], 'holdings_id'));
-    if ($held) {
-      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => ['ids' => implode(',', $held)]])->toString();
+    $aids = array_filter(array_column($results['items'], 'finding_aid'));
+    if ($held || $aids) {
+      $build['#holdings_url'] = Url::fromRoute('palefire_search.holdings', [], ['query' => array_filter(['ids' => implode(',', $held), 'aids' => implode(',', $aids)])])->toString();
     }
     // A service may find more than it will return. The total stays true and the
     // pager stops where the service does, which the last page explains.

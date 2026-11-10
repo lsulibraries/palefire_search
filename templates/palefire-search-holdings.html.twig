@@ -5,9 +5,10 @@
  * from once it loads.
  *
  * Variables:
- * - records: each [id, state, place, reason, due, more, url, copies].
+ * - records: each [id, key, state, place, reason, due, more, url, copies]. key
+ *   names the row it fills when that is not the record itself (a finding aid).
  *   state: available, online, out or listed. Each copy is one library and shelf:
- *   [library, library_name, library_more, item_id, shelf, type, call_number, general_call, call_more, floor, map_url,
+ *   [library, library_name, library_more, item_id, shelf, type, stack_location, call_number, general_call, call_more, floor, map_url,
  *   has (lines), available,
  *   total, online, reason, due, hold_url, request_url, reading_room, items,
  *   items_more]. Each
@@ -25,7 +26,7 @@
   {% set only = record.copies|length == 1 ? record.copies|first %}
   {% set first_call = only and only.items ? (only.items|first).call_number %}
   {% set whole_call = first_call ? (only.general_call ?: (only.call_count > 1 ? '@call + @count more'|t({'@call': first_call, '@count': only.call_count - 1}))) %}
-  <div data-pf-index-holdings-for="{{ record.id }}"{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
+  <div data-pf-index-holdings-for="{{ record.key ?: record.id }}"{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
     {% if record.state == 'online' and record.more == 0 %}
       <p class="pf-index-row__holdings-line pf-index-row__holdings-line--online"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
     {% else %}
@@ -55,8 +56,10 @@
         {% set copy_total = record.copies|reduce((sum, c) => sum + c.total, 0) %}
         <div class="pf-index-row__copies-table">
           {% for copy in record.copies %}
-            {% set place_id = 'pf-index-place-' ~ record.id ~ '-' ~ loop.index %}
+            {% set place_id = 'pf-index-place-' ~ (record.key ?: record.id) ~ '-' ~ loop.index %}
             {% set sortable = copy.items|length > 1 %}
+            {# An archive's numbers say where its boxes stand on the shelves. #}
+            {% set call_label = copy.stack_location ? 'Stack location'|t : 'Call number'|t %}
             <section class="pf-index-row__place" aria-labelledby="{{ place_id }}">
               <div class="pf-index-row__place-head">
                 <div class="pf-index-row__place-about">
@@ -91,7 +94,7 @@
                 <caption class="visually-hidden">{{ 'Copies at @library'|t({'@library': copy.library}) }}</caption>
                 <thead role="rowgroup">
                   <tr role="row">
-                    {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Call number'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ 'Call number'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Call number'|t }}</th>{% endif %}
+                    {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ call_label }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="call">{{ call_label }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ call_label }}</th>{% endif %}
                     <th role="columnheader" scope="col">{{ 'Copy'|t }}</th>
                     {% if sortable %}<th role="columnheader" scope="col"><span class="pf-index-row__th-text">{{ 'Status'|t }}</span><button type="button" class="pf-index-row__sort" data-pf-index-sort="status">{{ 'Status'|t }}<svg class="pf-index-row__sort-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path class="pf-index-row__sort-up" d="M12 4 18 10H6Z"/><path class="pf-index-row__sort-down" d="M12 20 6 14H18Z"/></svg></button></th>{% else %}<th role="columnheader" scope="col">{{ 'Status'|t }}</th>{% endif %}
                     <th role="columnheader" scope="col"><span class="visually-hidden">{{ 'Actions'|t }}</span></th>
@@ -102,7 +105,7 @@
                     {# Each box or volume, with what it holds and its own request. #}
                     {% for item in copy.items %}
                       <tr role="row" class="pf-index-row__copy-item" data-pf-index-available="{{ item.available ? 1 : 0 }}">
-                        <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}"><span class="pf-index-row__item-number">{{ item.call_number }}</span>
+                        <td role="cell" class="pf-index-row__item-call" data-label="{{ call_label }}"><span class="pf-index-row__item-number">{{ item.call_number }}</span>
                           {%- if item.contents -%}
                             <span class="pf-index-row__item-contents"><span class="visually-hidden">{{ 'LSU has'|t }}: </span>
                               {%- for line in item.contents -%}
@@ -126,7 +129,7 @@
                   {% else %}
                     {# One copy, or none to count: one row. Its buttons are in the heading. #}
                     <tr role="row" class="pf-index-row__copy-item">
-                      <td role="cell" class="pf-index-row__item-call" data-label="{{ 'Call number'|t }}"><span class="pf-index-row__item-number">{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</span></td>
+                      <td role="cell" class="pf-index-row__item-call" data-label="{{ call_label }}"><span class="pf-index-row__item-number">{{ copy.call_number }}{% if copy.call_more %} {{ '+ @count more'|t({'@count': copy.call_more}) }}{% endif %}</span></td>
                       <td role="cell" class="pf-index-row__item-copy" data-label="{{ 'Copy'|t }}"{% if copy.item_id %} data-pf-index-copy-of="{{ copy.item_id }}"{% endif %}></td>
                       <td role="cell" class="pf-index-row__item-status" data-label="{{ 'Status'|t }}">
                         {%- if not copy.total -%}
