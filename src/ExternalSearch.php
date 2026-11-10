@@ -8,8 +8,9 @@ use Drupal\views\Views;
 /**
  * Searches outside services.
  *
- * Discovery has its own class, for the filters its View can't pass, and the
- * Catalog has one for its feed. Research
+ * Discovery has its own class, for the filters its View can't pass, the
+ * Catalog has one for its feed, and Journals one for the titles and years
+ * Discovery's service holds. Research
  * Guides runs its View for the data and ignores the markup. The connector
  * modules (eds, libguides) keep the credentials and the calls.
  */
@@ -18,6 +19,7 @@ class ExternalSearch {
   public function __construct(
     private readonly DiscoverySearch $discovery,
     private readonly CatalogSearch $catalog,
+    private readonly JournalSearch $journals,
   ) {}
 
   /**
@@ -45,12 +47,15 @@ class ExternalSearch {
    *   total, reachable (when fewer can be paged to), capped (when there may be
    *   more than the total), failed, and items: [title,
    *   url, external, summary, meta, source, type, full_text_url, image_url,
-   *   holdings_id]. backup is TRUE when a stand-in service answered.
+   *   holdings_id, and for a journal coverage and coverage_more]. backup is
+   *   TRUE when a stand-in service answered. journal is the journal whose name
+   *   is the search, when Discovery offers one, as a row.
    */
   public function search(array $source, string $query, int $page, int $limit, string $sort = 'relevance', array $filters = []): array {
     // Each service reads operators its own way.
     $terms = match ($source['adapter']) {
-      'discovery' => SearchTerms::forDiscovery($query),
+      // Journals is Discovery's service, so it reads the same operators.
+      'discovery', 'journals' => SearchTerms::forDiscovery($query),
       // Words and phrases only: the Catalog's feed reads AND and NOT as words.
       'guides', 'catalog' => SearchTerms::forGuides($query),
       default => $query,
@@ -62,6 +67,7 @@ class ExternalSearch {
     $results = match ($source['adapter']) {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
+      'journals' => $this->journals->search($terms, $filters, $page, $limit),
       default => $this->guidesResults($source, $terms, $page, $limit),
     };
 
@@ -69,15 +75,25 @@ class ExternalSearch {
     $results['simplified'] = in_array($source['adapter'], ['guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
 
     $words = SearchSources::indexableWords($query);
-    foreach ($results['items'] as $index => $item) {
-      $item['title'] = ResultText::highlight(ResultText::clean($item['title']), $words);
-      $item['summary'] = ResultText::highlight(ResultText::summary($item['summary']), $words);
-      $item['meta'] = ResultText::clean($item['meta']);
-      $item['external'] = TRUE;
-      $item['source'] = NULL;
-      $results['items'][$index] = $item;
+    $results['items'] = array_map(fn(array $item): array => $this->shown($item, $words), $results['items']);
+    if (!empty($results['journal'])) {
+      // Its title is the search, so marking the words would mark all of it.
+      $results['journal'] = $this->shown($results['journal'], []);
     }
     return $results;
+  }
+
+  /**
+   * A service's row as the page shows it: escaped, with the searched words
+   * marked.
+   */
+  private function shown(array $item, array $words): array {
+    $item['title'] = ResultText::highlight(ResultText::clean($item['title']), $words);
+    $item['summary'] = ResultText::highlight(ResultText::summary($item['summary']), $words);
+    $item['meta'] = ResultText::clean($item['meta']);
+    $item['external'] = TRUE;
+    $item['source'] = NULL;
+    return $item;
   }
 
   /**
@@ -98,6 +114,8 @@ class ExternalSearch {
    * Filter counts from a service's latest search, by filter name.
    */
   public function counts(array $source): array {
+    // Journals has none: the service drops its Type counts once a type is
+    // chosen, and it always searches with one.
     return match ($source['adapter']) {
       'discovery' => $this->discovery->counts(),
       'catalog' => $this->catalog->counts(),

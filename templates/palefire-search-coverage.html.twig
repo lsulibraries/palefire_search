@@ -1,0 +1,45 @@
+{#
+/**
+ * @file
+ * Where a journal can be read online, and which years: one line per package,
+ * best first. Used on a Journals row and on the journal card above Discovery.
+ *
+ * Variables:
+ * - coverage: [name, url, ranges: [start, end], delay, delay_unit]. end is
+ *   NULL when the package runs to today. delay is how much of the newest
+ *   issues a package leaves out, in delay_unit (year, month, week or day).
+ * - more: how many more packages there are than are listed.
+ * - more_url: where they're all listed.
+ * - title: the journal's title, to name the links to a screen reader.
+ */
+#}
+<ul class="pf-index-coverage" role="list">
+  {% for package in coverage %}
+    <li class="pf-index-coverage__package">
+      <a class="pf-index-coverage__name" href="{{ package.url }}">{{ package.name }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden">: {{ title|striptags }} {{ '(another site)'|t }}</span></a>
+      {%- if package.ranges or package.delay %}
+        <span class="pf-index-coverage__years">
+          {%- for range in package.ranges -%}
+            {{ loop.first ? '' : ', ' }}{{ range.start }}{% if range.end != range.start %}–{{ range.end ?: 'present'|t }}{% endif %}
+          {%- endfor -%}
+          {%- if package.delay -%}
+            {% set count = package.delay %}
+            {{ package.ranges ? ' · ' }}
+            {%- if package.delay_unit == 'month' -%}
+              {% trans %}except the latest month{% plural count %}except the latest {{ count }} months{% endtrans %}
+            {%- elseif package.delay_unit == 'week' -%}
+              {% trans %}except the latest week{% plural count %}except the latest {{ count }} weeks{% endtrans %}
+            {%- elseif package.delay_unit == 'day' -%}
+              {% trans %}except the latest day{% plural count %}except the latest {{ count }} days{% endtrans %}
+            {%- else -%}
+              {% trans %}except the latest year{% plural count %}except the latest {{ count }} years{% endtrans %}
+            {%- endif -%}
+          {%- endif -%}
+        </span>
+      {%- endif %}
+    </li>
+  {% endfor %}
+</ul>
+{% if more %}
+  <p class="pf-index-coverage__more"><a href="{{ more_url }}">{% trans %}and 1 more place to read it{% plural more %}and {{ more }} more places to read it{% endtrans %}<span class="visually-hidden">: {{ title|striptags }} {{ '(another site)'|t }}</span></a></p>
+{% endif %}

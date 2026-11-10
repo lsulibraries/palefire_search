@@ -527,6 +527,7 @@ class SearchController extends ControllerBase {
       '#total' => $results['total'],
       '#count' => $this->countText($results['total'], !empty($results['capped'])),
       '#items' => $results['items'],
+      '#journal' => $results['journal'] ?? NULL,
       '#failed' => $results['failed'] ?? FALSE,
       '#simplified' => $results['simplified'] ?? NULL,
       '#backup' => !empty($results['backup']),

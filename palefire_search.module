@@ -50,6 +50,7 @@ function palefire_search_theme(): array {
         'total' => NULL,
         'count' => '',
         'items' => [],
+        'journal' => NULL,
         'failed' => FALSE,
         'simplified' => NULL,
         'backup' => FALSE,

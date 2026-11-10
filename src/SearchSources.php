@@ -67,7 +67,7 @@ final class SearchSources {
       'research' => [
         'label' => 'Research',
         'layout' => 'sections',
-        'sources' => ['catalog', 'articles', 'databases', 'etextbooks', 'guides', 'archive'],
+        'sources' => ['catalog', 'articles', 'journals', 'databases', 'etextbooks', 'guides', 'archive'],
         'upcoming' => ['alma'],
         'links' => ['repository'],
       ],
@@ -211,6 +211,25 @@ final class SearchSources {
         'year_filter' => TRUE,
         'more_label' => 'Search the Catalog',
         'more_url' => 'https://lsu.ent.sirsi.net/client/en_US/lsu/search/results?user_id=&qu=@q&rt=Keyword&qf=ALL',
+      ],
+      'journals' => [
+        'label' => 'Journals',
+        'about' => 'Journals, newspapers, newsletters and reports the Libraries can read online, with the years each one covers and where to read them.',
+        'kind' => 'external',
+        'adapter' => 'journals',
+        // Its full list is on this page: go there, not away.
+        'lists_here' => TRUE,
+        'refine_options' => [
+          'journal' => 'Journals',
+          'newspaper' => 'Newspapers',
+          'newsletter' => 'Newsletters',
+          'report' => 'Reports',
+        ],
+        'refine_groups' => [
+          'Type' => ['journal', 'newspaper', 'newsletter', 'report'],
+        ],
+        'more_label' => 'Search all journals',
+        'more_url' => 'https://publications.ebsco.com/?custId=s8491974&groupId=main&profileId=pfui&orderBy=relevance&searchtype=contains&searchField=titlename&resourceTypeFacet%5B%5D=journals,newsletters,reports,newspapers&search=@q',
       ],
       'alma' => [
         'label' => 'Alma (coming soon)',

@@ -89,7 +89,7 @@ class DiscoverySearch {
     $this->counts = [];
     $page = min($page, (int) floor((self::MAX_START - 1) / $limit));
 
-    $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort));
+    $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort, $page === 0));
 
     // The service only reaches so far past what it has already read for a
     // search. Reading as far as it allows opens the page asked for.
@@ -110,6 +110,8 @@ class DiscoverySearch {
       'reachable' => min((int) $total, (int) (floor((self::MAX_START - 1) / $limit) + 1) * $limit),
       'failed' => FALSE,
       'items' => array_values(array_filter(array_map($this->record(...), $json['SearchResult']['Data']['Records'] ?? []))),
+      // A search for a journal by name gets that journal first, with its years.
+      'journal' => $page === 0 ? JournalSearch::exactMatch($json, $terms) : NULL,
     ];
   }
 
@@ -142,9 +144,10 @@ class DiscoverySearch {
    *
    * The proxy keeps only the last of a repeated parameter, so limiters are
    * numbered and all the types go in one facet filter: values of a type widen
-   * the results, and each limiter narrows them.
+   * the results, and each limiter narrows them. $journal asks for the journal
+   * the search may name (JournalSearch::exactMatch()).
    */
-  private function address(string $terms, array $filters, int $page, int $limit, string $sort): string {
+  private function address(string $terms, array $filters, int $page, int $limit, string $sort, bool $journal = FALSE): string {
     $parameters = [
       // A bare comma would end the search there: it separates a field from
       // its value.
@@ -157,6 +160,9 @@ class DiscoverySearch {
       'pagenumber' => $page + 1,
       'highlight' => 'n',
     ];
+    if ($journal) {
+      $parameters['relatedcontent'] = 'emp';
+    }
 
     $limiters = array_map(
       static fn(string $id): string => $id . ':y',

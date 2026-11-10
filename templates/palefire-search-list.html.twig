@@ -19,7 +19,9 @@
  *   host, sent no referrer so the search stays private. alt is empty on both:
  *   the title beside the picture already names the result. details lists an
  *   E-Textbook's copies, each [class, instructor, instructor_is_email, section,
- *   term].
+ *   term]. coverage and coverage_more say where a journal can be read, and
+ *   which years (palefire-search-coverage.html.twig).
+ * - journal: the journal whose title is the search, shown first, or NULL.
  * - failed: the source couldn't be reached. Not the same as no results.
  * - simplified: what was searched instead, when the source can't use operators.
  * - backup: the source's usual search is down and a stand-in answered.
@@ -45,6 +47,9 @@
     {% if backup %}
       <p class="pf-index-list__status">{{ 'The usual @label search isn’t answering, so these are its newest matches, not its closest.'|t({'@label': label}) }}</p>
     {% endif %}
+    {% if journal %}
+      {% include '@palefire_search/palefire-search-journal.html.twig' with {journal: journal} only %}
+    {% endif %}
     <ol class="pf-index-list__rows" role="list"{% if holdings_url %} data-pf-index-holdings-url="{{ holdings_url }}"{% endif %}>
       {% for item in items %}
         <li class="pf-index-row{{ item.image or item.image_url ? ' pf-index-row--image' }}">
@@ -60,6 +65,14 @@
           </h3>
           {% if item.meta %}
             <p class="pf-index-row__meta">{{ item.meta }}</p>
+          {% endif %}
+          {% if item.coverage %}
+            {% include '@palefire_search/palefire-search-coverage.html.twig' with {
+              coverage: item.coverage,
+              more: item.coverage_more,
+              more_url: item.url,
+              title: item.title
+            } only %}
           {% endif %}
           {% if item.summary|render %}
             <p class="pf-index-row__summary">{{ item.summary }}</p>

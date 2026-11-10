@@ -7,15 +7,29 @@ Combined Search (working name "the Index"): the search page at `/v2/search`, in 
   `bento_search` index, matching all words. PDF Finding Aids searches only
   finding aids and oral history abstracts, with Oral histories as a filter
   under it.
-- **External sources** (Discovery, Catalog, Research Guides): each from its own
-  service. Their sections load after the page.
+- **External sources** (Discovery, Catalog, Journals, Research Guides): each from
+  its own service. Their sections load after the page.
 - **Links only** (Scholarly Repository).
+
+Journals (in Research) is the homepage's e-journal search: the titles in the
+Libraries' online holdings, from Discovery's own service and proxy
+(`/edsapi/publication/search`), limited to journals, newspapers, newsletters and
+reports. Each row lists up to three packages, best first (running to today,
+reaching furthest back, no delay), with their years and any delay, and links to
+the service's page for the rest. The service drops its Type counts once a type
+is chosen, so the Type filter has no numbers. Paging stops at record 251.
+
+Discovery also asks for the journal a search names (`relatedcontent=emp`, first
+page only) and shows it in a card above its rows, with the same coverage lines.
+The service offers near matches too, so the card appears only when the title is
+the search itself, case, punctuation and a leading "The" aside
+(`JournalSearch::sameTitle()`).
 
 The Catalog uses two public services together. Its results feed chooses and
 orders the rows, because only the feed ranks by relevance. Its web service then
 adds each row's copies and availability, from `/v2/search/holdings`, which loads
-after the rows and is kept for two minutes. Copies link to the shelf map, a hold
-on the catalog's record page, or the Special Collections request form. If the feed goes down, the web service
+after the rows and is kept for two minutes. Copies link to the shelf map, the
+catalog's hold page (its sign-in, then the hold form), or the Special Collections request form. If the feed goes down, the web service
 answers the search too, newest first and saying so. It has no working Type or Year
 filter, so a search using one shows the failure message instead.
 

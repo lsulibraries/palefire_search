@@ -1,0 +1,26 @@
+{#
+/**
+ * @file
+ * The journal a search names, above Discovery's results: its title, ISSNs and
+ * where to read it, so "nature" or "the new york times" is one click away.
+ *
+ * Variables:
+ * - journal: a Journals row [title, url, type, meta, coverage, coverage_more].
+ *   title is already escaped. Its words aren't marked: they're the search.
+ */
+#}
+<aside class="pf-index-journal" aria-labelledby="pf-index-journal-title">
+  <p class="pf-index-journal__label">{{ journal.type }}<span aria-hidden="true"> · </span><span class="visually-hidden">, </span>{{ 'Title matches your search'|t }}</p>
+  <h3 class="pf-index-journal__title" id="pf-index-journal-title">
+    <a href="{{ journal.url }}">{{ journal.title }}<svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg><span class="visually-hidden"> {{ '(another site)'|t }}</span></a>
+  </h3>
+  {% if journal.meta %}
+    <p class="pf-index-journal__meta">{{ journal.meta }}</p>
+  {% endif %}
+  {% include '@palefire_search/palefire-search-coverage.html.twig' with {
+    coverage: journal.coverage,
+    more: journal.coverage_more,
+    more_url: journal.url,
+    title: journal.title
+  } only %}
+</aside>
