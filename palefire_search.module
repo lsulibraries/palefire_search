@@ -37,6 +37,7 @@ function palefire_search_theme(): array {
         'notice' => NULL,
         'answer' => NULL,
         'action' => '',
+        'kept' => [],
       ],
     ],
     'palefire_search_holdings' => [

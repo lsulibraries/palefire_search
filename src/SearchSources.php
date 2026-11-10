@@ -146,6 +146,8 @@ final class SearchSources {
         'more_label' => 'See all in Discovery',
         'more_url' => 'https://libezp.lib.lsu.edu/login?url=https://search.ebscohost.com/login.aspx?direct=true&site=eds-live&scope=site&type=0&mode=and&lang=en&bquery=@q',
       ],
+      // The guides site's own search, with the View as a stand-in when it
+      // can't be read (ExternalSearch::guides()).
       'guides' => [
         'label' => 'Research Guides',
         'about' => 'Librarians’ pages of recommended sources and tips for a subject or a course.',
@@ -162,7 +164,7 @@ final class SearchSources {
         'label' => 'Special Collections Guides',
         'about' => 'Librarians’ guides to Special Collections’ holdings and to researching a subject in them: a subset of Research Guides.',
         'kind' => 'external',
-        'adapter' => 'tagged_guides',
+        'adapter' => 'guides',
         // The guides site's ID for its Special Collections tag.
         'tag_id' => 536193,
         // Its full list is on this page: go there, not away.

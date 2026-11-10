@@ -161,6 +161,7 @@ class SearchController extends ControllerBase {
         'tags' => ['search_api_list:' . SearchSources::INDEX],
       ],
     ];
+    $build['#kept'] = $this->kept($chosen, $refines, $years, $sort);
 
     if ($query === '') {
       return $build;
@@ -274,6 +275,33 @@ class SearchController extends ControllerBase {
     $response->setPublic();
     $response->setMaxAge(self::HOLDINGS_MAX_AGE);
     return $response;
+  }
+
+  /**
+   * The chosen filters and sort as form fields, the same values address()
+   * writes, so a new search from the search box keeps them. Not the page: a
+   * new search starts at its first.
+   *
+   * @return array
+   *   Each [name, value].
+   */
+  private function kept(array $chosen, array $refines, array $years, string $sort): array {
+    $fields = [];
+    foreach ($chosen as $key) {
+      $fields[] = ['name' => 'source[]', 'value' => $key];
+    }
+    foreach ($refines as $key => $options) {
+      foreach ($options as $option) {
+        $fields[] = ['name' => 'refine[]', 'value' => $key . ':' . $option];
+      }
+    }
+    foreach ($years as $name => $year) {
+      $fields[] = ['name' => $name, 'value' => (string) $year];
+    }
+    if ($sort !== 'relevance') {
+      $fields[] = ['name' => 'sort', 'value' => $sort];
+    }
+    return $fields;
   }
 
   /**

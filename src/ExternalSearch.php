@@ -21,7 +21,7 @@ class ExternalSearch {
     private readonly DiscoverySearch $discovery,
     private readonly CatalogSearch $catalog,
     private readonly JournalSearch $journals,
-    private readonly GuideSearch $taggedGuides,
+    private readonly GuideSearch $guideSearch,
     private readonly PdfFacts $pdfFacts,
   ) {}
 
@@ -61,7 +61,7 @@ class ExternalSearch {
       // Journals is Discovery's service, so it reads the same operators.
       'discovery', 'journals' => SearchTerms::forDiscovery($query),
       // Words and phrases only: the Catalog's feed reads AND and NOT as words.
-      'guides', 'tagged_guides', 'catalog' => SearchTerms::forGuides($query),
+      'guides', 'catalog' => SearchTerms::forGuides($query),
       default => $query,
     };
     if ($terms === '') {
@@ -72,12 +72,11 @@ class ExternalSearch {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
-      'tagged_guides' => $this->taggedGuides->search($terms, $source['tag_id'], $page, $limit),
-      default => $this->guidesResults($source, $terms, $page, $limit),
+      default => $this->guidePages($source, $terms, $page, $limit),
     };
 
     // Some services can't honor operators, and the page says so.
-    $results['simplified'] = in_array($source['adapter'], ['guides', 'tagged_guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
+    $results['simplified'] = in_array($source['adapter'], ['guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
 
     $words = SearchSources::indexableWords($query);
     $results['items'] = array_map(fn(array $item): array => $this->shown($item, $words), $results['items']);
@@ -95,6 +94,8 @@ class ExternalSearch {
   private function shown(array $item, array $words): array {
     $item['title'] = ResultText::highlight(ResultText::clean($item['title']), $words);
     $item['summary'] = ResultText::highlight(ResultText::summary($item['summary']), $words);
+    // A guide page's words around the match, marked as an archive record's are.
+    $item['excerpt'] = ($item['excerpt'] ?? '') === '' ? '' : ResultText::highlight(ResultText::clean($item['excerpt']), $words);
     $item['meta'] = ResultText::clean($item['meta']);
     $item['external'] = TRUE;
     $item['source'] = NULL;
@@ -137,6 +138,16 @@ class ExternalSearch {
       'catalog' => $this->catalog->counts(),
       default => [],
     };
+  }
+
+  /**
+   * A page of research guides from the guides site's own search, which shows
+   * the words around each match. Only Research Guides itself has its View to
+   * fall back on, which has no such words, when that search can't be read.
+   */
+  private function guidePages(array $source, string $terms, int $page, int $limit): array {
+    $results = $this->guideSearch->search($terms, $source['tag_id'] ?? NULL, $page, $limit);
+    return $results['failed'] && isset($source['view']) ? $this->guidesResults($source, $terms, $page, $limit) : $results;
   }
 
   /**

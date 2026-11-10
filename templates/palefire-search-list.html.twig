@@ -8,7 +8,7 @@
  * - label: the source's name.
  * - total: how many results, or NULL when the source couldn't be reached.
  * - count: total as words ("300+ results"), empty when it's NULL.
- * - items: [title, url, external, summary, excerpt, pdf, pdf_url, meta, source, type, full_text_url,
+ * - items: [title, url, external, summary, excerpt, excerpt_from, pdf, pdf_url, meta, source, type, full_text_url,
  *   image, image_url, login, holdings_id, archive_pdf]. pdf is [pages, size] for a PDF on this site;
  *   pages is empty when the file couldn't be read for them. pdf_url is a
  *   Catalog record's finding aid or oral history abstract. holdings_id holds a place for where
@@ -82,7 +82,7 @@
           {# Words around the match inside the record itself, so it's plain the
              search reads the whole PDF, not only the description. #}
           {% if item.excerpt|render %}
-            <p class="pf-index-row__excerpt"><span class="pf-index-row__excerpt-label">{{ item.url ends with '.pdf' ? 'Found in the PDF'|t : 'Found in the full text'|t }}</span> {{ item.excerpt }}</p>
+            <p class="pf-index-row__excerpt"><span class="pf-index-row__excerpt-label">{{ item.excerpt_from == 'guide' ? 'Found in the guide'|t : (item.url ends with '.pdf' ? 'Found in the PDF'|t : 'Found in the full text'|t) }}</span> {{ item.excerpt }}</p>
           {% endif %}
           {# A record that is a PDF: a button as clear as a catalog row's Show
              location. A new tab, so the results stay where they were. Its length

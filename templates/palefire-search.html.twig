@@ -12,6 +12,8 @@
  * - query, mode: the current search.
  * - action: the forms' address.
  * - modes: [label, url, current], the tabs.
+ * - kept: [name, value] for each chosen filter and the sort, sent again with
+ *   a new search.
  * - filters: [title, name, single, about, options: [label, value, count, checked]].
  *   The Source group also has all: [label, checked], its All sources row.
  *   single: one choice, as round buttons. about: [label, text], what each source
@@ -70,6 +72,8 @@
           <button class="pf-index__erase" type="button" data-pf-index-erase hidden><span class="visually-hidden">{{ 'Clear search'|t }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
         </span>
         {% if mode != 'all' %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
+        {# The chosen filters and sort, so a new search keeps them. #}
+        {% for field in kept %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
         <button class="pf-index__submit" type="submit">{{ 'Search'|t }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button>
       </div>
     </form>

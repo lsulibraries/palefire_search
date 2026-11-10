@@ -8,14 +8,15 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 
 /**
- * Searches the research guides that carry one tag, such as Special Collections.
+ * Searches the research guides, all of them or those with one tag, such as
+ * Special Collections.
  *
- * The guides site's own search page lists a tag's guides from this address,
+ * The guides site's own search page lists its results from this address,
  * which needs no key: it answers with the results as HTML inside JSON, 20 pages
  * at a time, and a "Showing 20 of 94 Pages" line for the total. It's written
  * for that page and could change: if it can't be read, the section says so and
  * offers the guides site. Results are guide pages, so one guide can give more
- * than one row.
+ * than one row, and each brings the words around the match in that page.
  */
 class GuideSearch {
 
@@ -46,17 +47,18 @@ class GuideSearch {
    *
    * @param string $terms
    *   The search, words and phrases only.
-   * @param int $tag
-   *   The guides site's ID for the tag.
+   * @param int|null $tag
+   *   The guides site's ID for a tag, or NULL for every guide.
    * @param int $page
    *   The page, from 0.
    * @param int $limit
    *   Results per page, at most 20.
    *
    * @return array
-   *   total, failed, and items: [title, url, summary, meta].
+   *   total, failed, and items: [title, url, summary, excerpt, excerpt_from,
+   *   meta]. excerpt: the words around the match in the page.
    */
-  public function search(string $terms, int $tag, int $page, int $limit): array {
+  public function search(string $terms, ?int $tag, int $page, int $limit): array {
     $failed = ['total' => NULL, 'failed' => TRUE, 'items' => []];
     $limit = min($limit, self::PAGE_SIZE);
     // The address pages by 20, so a page of fewer is cut from its 20.
@@ -82,7 +84,7 @@ class GuideSearch {
   /**
    * One answer from the address, or NULL if it couldn't be read.
    */
-  private function fetch(string $terms, int $tag, int $start): ?array {
+  private function fetch(string $terms, ?int $tag, int $start): ?array {
     try {
       $response = $this->client->request('GET', self::SEARCH, [
         'query' => [
@@ -93,7 +95,7 @@ class GuideSearch {
           'start' => $start,
           'group_id' => 0,
           'guide_id' => 0,
-          'f_guide_tag_ids' => $tag,
+          'f_guide_tag_ids' => $tag ?? '',
           'sort' => '_score',
         ],
         'connect_timeout' => 5,
@@ -144,7 +146,9 @@ class GuideSearch {
       $rows[] = [
         'title' => $title,
         'url' => ResultText::url($url),
-        'summary' => $text('.//div[' . $class('s-srch-result-highlights') . ']'),
+        'summary' => '',
+        'excerpt' => $text('.//div[' . $class('s-srch-result-highlights') . ']'),
+        'excerpt_from' => 'guide',
         // A guide's first page has the guide's own name: no need to say it twice.
         'meta' => implode(' · ', array_filter([$guide !== $title ? $guide : '', $author])),
       ];
