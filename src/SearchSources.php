@@ -61,6 +61,7 @@ final class SearchSources {
         'label' => 'All',
         'layout' => 'sections',
         'sources' => ['articles', 'catalog', 'databases', 'guides', 'archive', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
+        'upcoming' => ['alma'],
         'links' => ['repository'],
       ],
       'research' => [
