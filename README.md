@@ -48,6 +48,8 @@ drush en palefire_search
 drush cr
 ```
 
+In the `bento_search` index, turn on the processor **Archive records: finding aids and oral histories only** (Processors tab), then reindex. It leaves out the archive records the search never shows, such as Breaux Data, which were most of the index. Oral histories filter by series once `field_series` is in the index as a String.
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`

@@ -291,9 +291,10 @@ final class SearchSources {
         'kind' => 'local',
         'types' => ['archive_record'],
         // Only these record types are searched: the PDFs. The rest of the
-        // archive records, such as Breaux Data, aren't part of the Index. They're
-        // to be dropped from the bento_search index itself later; until then this
-        // keeps them out, and it does no harm after.
+        // archive records, such as Breaux Data, aren't part of the Index. The
+        // index leaves them out once its "Archive records: finding aids and oral
+        // histories only" processor is on (ArchivePdfsOnly); this keeps them out
+        // either way.
         'record_types' => ['finding_aid', 'oral_history'],
         // Records of these types with no PDF are left out: oral histories not
         // yet processed, which are to leave the index.
