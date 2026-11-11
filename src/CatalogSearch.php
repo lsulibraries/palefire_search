@@ -586,6 +586,7 @@ class CatalogSearch {
         $items[] = $item;
       }
       [$items, $has] = $this->withContents($items, $found['holdings']);
+      $items = array_map(fn(array $item): array => $item + ['run' => $this->run($item['contents'])], $items);
       // A holding's call number covers the shelf only if it isn't one item's own.
       $whole = $found['marc_calls'] && !array_intersect($found['marc_calls'], $calls) ? $found['marc_calls'][0] : '';
       $several = $listed && count($calls) > 1;
@@ -664,7 +665,9 @@ class CatalogSearch {
     $found = [];
     foreach ($title['BibliographicInfo']['MarcEntryInfo'] ?? [] as $entry) {
       $tag = (string) ($entry['entryID'] ?? '');
-      $text = trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags((string) ($entry['text'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
+      // Plain text, escaped where it's shown: <Jan. 1977> is a date the
+      // catalog left open, not a tag.
+      $text = trim(preg_replace('/\s+/u', ' ', html_entity_decode((string) ($entry['text'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
       if (!isset(self::DETAILS[$tag]) || $text === '') {
         continue;
       }
@@ -674,7 +677,8 @@ class CatalogSearch {
       if ($subject || $tag[0] === '5') {
         $text = preg_replace($subject && substr((string) ($entry['indicators'] ?? ''), 1, 1) === '7' ? '/\s+[a-z]{2,10}$/' : '/(?<=\.)\s+[a-z]{3,8}$/', '', $text) ?? $text;
       }
-      $lines = $tag === '505' ? preg_split('/\s+--\s+/u', $text) : [$text];
+      // Contents: one part a line, however the record spaces its --.
+      $lines = $tag === '505' ? array_filter(array_map('trim', preg_split('/\s*--\s*/u', $text) ?: []), 'strlen') : [$text];
       foreach ($lines as $line) {
         $line = $subject || $tag[0] === '7' || $tag === '490' ? $this->withoutFinalPeriod($line) : $line;
         $found[self::DETAILS[$tag]][] = [
@@ -698,6 +702,31 @@ class CatalogSearch {
       ];
     }
     return $groups;
+  }
+
+  /**
+   * The span of a box's or volume's run, from lines such as
+   * "no.118(1961:Feb.), no.126(1962:Feb.)", or NULL with fewer than two
+   * issues to go by.
+   *
+   * @return array|null
+   *   kind (no or v), first and last numbers, and from and to years.
+   */
+  private function run(array $lines): ?array {
+    preg_match_all('/\b(no|v)\.\s*(\d+)[^()]*?\((\d{4})/i', implode(' ', $lines), $found, PREG_SET_ORDER);
+    if (count($found) < 2) {
+      return NULL;
+    }
+    $kind = strtolower($found[0][1]);
+    $numbers = array_map('intval', array_column(array_filter($found, static fn(array $issue): bool => strtolower($issue[1]) === $kind), 2));
+    $years = array_map('intval', array_column($found, 3));
+    return [
+      'kind' => $kind,
+      'first' => min($numbers),
+      'last' => max($numbers),
+      'from' => min($years),
+      'to' => max($years),
+    ];
   }
 
   /**

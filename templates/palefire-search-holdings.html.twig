@@ -66,7 +66,8 @@
         <div class="pf-index-row__copies-table">
           {% for copy in record.copies %}
             {% set place_id = 'pf-index-place-' ~ (record.key ?: record.id) ~ '-' ~ loop.index %}
-            {% set sortable = copy.items|length > 1 %}
+            {# Sorting helps from five rows; fewer read at a glance. #}
+            {% set sortable = copy.items|length > 4 %}
             {# An archive's numbers say where its boxes stand on the shelves. #}
             {% set call_label = copy.stack_location ? 'Stack location'|t : 'Call number'|t %}
             <section class="pf-index-row__place" aria-labelledby="{{ place_id }}">
@@ -118,6 +119,10 @@
                         <td role="cell" class="pf-index-row__item-call" data-label="{{ call_label }}"><span class="pf-index-row__item-number">{{ item.call_number }}</span>
                           {%- if item.contents -%}
                             <span class="pf-index-row__item-contents"><span class="visually-hidden">{{ 'LSU has'|t }}: </span>
+                              {#- A run's span first, to see which box holds a year; its issues under it. -#}
+                              {%- if item.run -%}
+                                <span class="pf-index-row__item-run">{{ item.run.from == item.run.to ? item.run.from : item.run.from ~ '–' ~ item.run.to }} · {{ item.run.kind == 'v' ? 'v. @first–@last'|t({'@first': item.run.first, '@last': item.run.last}) : 'nos. @first–@last'|t({'@first': item.run.first, '@last': item.run.last}) }}</span>
+                              {%- endif -%}
                               {%- for line in item.contents -%}
                                 <span>{{ line|replace({',': ', ', ', ': ', '}) }}</span>
                               {%- endfor -%}
@@ -195,6 +200,9 @@
                 {%- if record.copies|length > 1 %} {{ 'in @count libraries'|t({'@count': record.copies|length}) }}{% endif -%}
               {%- endif -%}
             </p>
+            {# For a panel taller than the screen, so its toggle needn't be
+               scrolled back to (index-search.js shows it). #}
+            <button class="pf-index-row__close" type="button" data-pf-index-close-copies hidden>{{ record.copies|length > 1 ? 'Hide @count locations'|t({'@count': record.copies|length}) : (only.items ? 'Hide @count items'|t({'@count': only.total}) : 'Hide location'|t) }}</button>
             <a class="pf-index-row__full" href="{{ record.url }}" data-no-swup>{{ 'Full record in the catalog'|t }}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
           </div>
         </div>
