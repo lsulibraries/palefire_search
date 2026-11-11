@@ -13,7 +13,9 @@
  *   pages is empty when the file couldn't be read for them. pdf_url is a
  *   Catalog record's finding aid or oral history abstract. holdings_id holds a place for where
  *   the record's copies are, which loads after the list; archive_pdf does the
- *   same for the Catalog record that links that finding aid or abstract. type says what the
+ *   same for the Catalog record that links that finding aid or abstract.
+ *   summary_from_catalog: the row's summary is its Catalog record's, filled
+ *   when the holdings load (an oral history, whose own is its series'). type says what the
  *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
@@ -78,6 +80,8 @@
           {% endif %}
           {% if item.summary|render %}
             <p class="pf-index-row__summary">{{ item.summary }}</p>
+          {% elseif item.summary_from_catalog %}
+            <p class="pf-index-row__summary" data-pf-index-summary hidden></p>
           {% endif %}
           {# Words around the match inside the record itself, so it's plain the
              search reads the whole PDF, not only the description. #}

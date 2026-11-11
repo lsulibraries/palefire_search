@@ -35,7 +35,11 @@
   {% set only = record.copies|length == 1 ? record.copies|first %}
   {% set first_call = only and only.items ? (only.items|first).call_number %}
   {% set whole_call = first_call ? (only.general_call ?: (only.call_count > 1 ? '@call + @count more'|t({'@call': first_call, '@count': only.call_count - 1}))) %}
-  <div data-pf-index-holdings-for="{{ record.key ?: record.id }}"{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
+  {# The record's Summary, for a row that shows it in place of its own text
+     (an oral history: index-search.js). #}
+  {% set summary_group = record.details|default([])|filter(group => group.label == 'Summary')|first %}
+  {% set summary = summary_group ? summary_group.items|map(item => item.text)|join(' ') : '' %}
+  <div data-pf-index-holdings-for="{{ record.key ?: record.id }}"{% if summary %} data-pf-index-summary="{{ summary }}"{% endif %}{% if whole_call %} data-pf-index-call="{{ whole_call }}" data-pf-index-call-first="{{ first_call }}"{% endif %}>
     {% if record.state == 'online' and record.more == 0 %}
       <p class="pf-index-row__holdings-line pf-index-row__holdings-line--online"><span class="pf-index-row__status">{{ 'Available online'|t }}</span></p>
     {% else %}
@@ -170,7 +174,7 @@
               <h4 class="pf-index-row__about-title" id="{{ about_id }}">{{ 'About this item'|t }}</h4>
               <dl class="pf-index-row__about-list">
                 {% for group in record.details %}
-                  <div class="pf-index-row__about-group">
+                  <div class="pf-index-row__about-group" data-pf-index-detail="{{ group.label|clean_class }}">
                     <dt>{{ group.label|t }}</dt>
                     {% for item in group.items %}
                       <dd>{{ holdings.detail(item, group.search) }}</dd>

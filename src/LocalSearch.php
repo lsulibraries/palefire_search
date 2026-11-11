@@ -543,7 +543,10 @@ class LocalSearch {
       ],
       'archive_record' => [
         $node->label(),
-        $this->text($node, 'field_summary') ?: $this->text($node, 'field_description'),
+        // An oral history's description is its series', the same for every
+        // interview in it: its row takes the interview's own Summary from its
+        // Catalog record once the holdings load (index-search.js).
+        $this->isOralHistory($node) ? '' : ($this->text($node, 'field_summary') ?: $this->text($node, 'field_description')),
         SearchSources::get('archive')['record_labels'][$this->text($node, 'field_record_type')] ?? '',
         $this->linkField($node, ['field_record_url']),
       ],
@@ -583,12 +586,20 @@ class LocalSearch {
       'pdf' => $node->bundle() === 'archive_record' ? $this->pdfFacts->forUrl($url) : [],
       // A finding aid's or abstract's PDF, which finds its Catalog record.
       'archive_pdf' => $node->bundle() === 'archive_record' ? ResultText::archivePdf($url) : NULL,
+      'summary_from_catalog' => $this->isOralHistory($node),
       'meta' => ResultText::clean($meta),
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,
       'image_url' => $node->bundle() === 'e_books' ? ResultText::imageUrl($this->text($node, 'field_book_image_url')) : NULL,
       'details' => $node->bundle() === 'e_books' ? [$this->bookDetails($node)] : NULL,
     ];
+  }
+
+  /**
+   * Whether the node is an oral history's archive record.
+   */
+  private function isOralHistory(NodeInterface $node): bool {
+    return $node->bundle() === 'archive_record' && $this->text($node, 'field_record_type') === 'oral_history';
   }
 
   /**
