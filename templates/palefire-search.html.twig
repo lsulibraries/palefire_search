@@ -85,21 +85,25 @@
           {% endfor %}
         </ul>
       </nav>
-      {# How to write a search, in the glossary's card, as What are these? is.
+      {# How to write a search, in the glossary's card, its right edge on the
+         button's: each example on a line of its own beside what it does.
          SearchTerms reads all of it. #}
       <button class="pf-index__about-open pf-index__tips-open" type="button" popovertarget="pf-index-tips" style="anchor-name:--pf-index-tips">{{ 'Search tips'|t }}</button>
-      <div class="pf-term__card pf-index__about pf-index__tips" id="pf-index-tips" popover style="position-anchor:--pf-index-tips">
-        <p class="pf-term__name">{{ 'Search tips'|t }}</p>
+      <div class="pf-term__card pf-index__tips" id="pf-index-tips" popover style="position-anchor:--pf-index-tips" aria-labelledby="pf-index-tips-title">
+        <div class="pf-index__tips-head">
+          <p class="pf-term__name" id="pf-index-tips-title">{{ 'Search tips'|t }}</p>
+          <button class="pf-index__tips-close" type="button" popovertarget="pf-index-tips" popovertargetaction="hide">{{ 'Close'|t }}</button>
+        </div>
         <dl>
           <dt><code>"barry allen"</code></dt>
           <dd>{{ 'These words together, in this order. Library pages and finding aids still find the words anywhere in a record.'|t }}</dd>
           <dt><code>econom*</code></dt>
           <dd>{{ 'Words that start with these letters: economics, economy. Three letters or more before the *.'|t }}</dd>
-          <dt><code>cotton AND sugar</code> · <code>cotton OR sugar</code> · <code>cotton NOT sugar</code></dt>
-          <dd>{{ 'Both words, either word, or the first without the second. AND, OR and NOT go in capitals. A minus sign (-sugar) also leaves a word out, and parentheses group words.'|t }}</dd>
-          <dt><code>author:faulkner</code> · <code>title:"light in august"</code> · <code>subject:mississippi</code></dt>
+          <dt><code>cotton AND sugar</code> <code>cotton OR sugar</code> <code>cotton NOT sugar</code></dt>
+          <dd>{{ 'Both words, either word, or the first without the second. AND, OR and NOT go in capitals. A minus sign (‑sugar) also leaves a word out, and parentheses group words.'|t }}</dd>
+          <dt><code>author:faulkner</code> <code>title:"light in august"</code> <code>subject:mississippi</code></dt>
           <dd>{{ 'Words in one field. The Catalog takes one field to a search. On library pages, author finds oral histories by the person interviewed or interviewing.'|t }}</dd>
-          <dt><code>year:1862</code> · <code>year:1860-1865</code></dt>
+          <dt><code>year:1862</code> <code>year:1860-1865</code></dt>
           <dd>{{ 'Published in those years, in the Catalog and Discovery. It fills in the Year published filter.'|t }}</dd>
           <dt><code>"PS3511 .A86"</code></dt>
           <dd>{{ 'A call number, in quotes, in the Catalog.'|t }}</dd>
@@ -139,11 +143,12 @@
             <fieldset class="pf-index__group">
               <legend class="pf-index__group-title">
                 <span>{{ group.title }}</span>
-                {% if group.about %}<button class="pf-index__about-open" type="button" popovertarget="pf-index-about" style="anchor-name:--pf-index-about">{{ 'What are these?'|t }}</button>{% endif %}
+                {% if group.about %}<button class="pf-index__about-open" type="button" aria-expanded="false" aria-controls="pf-index-about" data-pf-index-about>{{ 'What are these?'|t }}</button>{% endif %}
               </legend>
+              {# What each source searches, opened in the filter itself above its
+                 options (index-search.js), so it never covers them. #}
               {% if group.about %}
-                <div class="pf-term__card pf-index__about" id="pf-index-about" popover style="position-anchor:--pf-index-about">
-                  <p class="pf-term__name">{{ 'What each source searches'|t }}</p>
+                <div class="pf-index__about" id="pf-index-about" hidden>
                   <dl>
                     {% for entry in group.about %}
                       <dt>{{ entry.label }}</dt>
