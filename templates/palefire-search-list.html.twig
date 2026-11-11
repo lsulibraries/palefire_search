@@ -15,7 +15,8 @@
  *   the record's copies are, which loads after the list; archive_pdf does the
  *   same for the Catalog record that links that finding aid or abstract.
  *   summary_from_catalog: the row's summary is its Catalog record's, filled
- *   when the holdings load (an oral history, whose own is its series'). type says what the
+ *   when the holdings load (an oral history, whose own is its series').
+ *   series: an oral history's series; series_url, this search narrowed to it. type says what the
  *   record is, such as Book. login
  *   is TRUE when the link asks for an LSU account off campus.
  *   title and summary are already escaped, with the searched words in <mark>.
@@ -82,6 +83,10 @@
             <p class="pf-index-row__summary">{{ item.summary }}</p>
           {% elseif item.summary_from_catalog %}
             <p class="pf-index-row__summary" data-pf-index-summary hidden></p>
+          {% endif %}
+          {# An oral history's series: the same search, narrowed to it. #}
+          {% if item.series %}
+            <p class="pf-index-row__series"><span class="pf-index-row__series-label">{{ 'Series'|t }}</span> {% if item.series_url %}<a href="{{ item.series_url }}">{{ item.series }}<span class="visually-hidden"> {{ ': more oral histories in this series'|t }}</span></a>{% else %}{{ item.series }}{% endif %}</p>
           {% endif %}
           {# Words around the match inside the record itself, so it's plain the
              search reads the whole PDF, not only the description. #}

@@ -7,6 +7,7 @@ use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldItemInterface;
+use Drupal\Core\Url;
 use Drupal\media\MediaInterface;
 use Drupal\node\NodeInterface;
 use Drupal\search_api\IndexInterface;
@@ -106,7 +107,72 @@ class LocalSearch {
         $items[] = $this->row($this->entityRepository->getTranslationFromContext($node), $source_keys, $words, $result->getExcerpt());
       }
     }
-    return ['total' => (int) $results->getResultCount(), 'items' => $items];
+    return ['total' => (int) $results->getResultCount(), 'items' => $this->withSeriesLinks($items, $query)];
+  }
+
+  /**
+   * Each oral history's series as a link: the same search, narrowed to that
+   * series, in Special Collections mode, where its filter is.
+   */
+  private function withSeriesLinks(array $items, string $query): array {
+    $definition = SearchSources::get('archive');
+    $index = $this->entityTypeManager->getStorage('search_api_index')->load(SearchSources::INDEX);
+    $linked = $index instanceof IndexInterface && $this->hasSeries($index, $definition);
+    foreach ($items as &$item) {
+      $item['series_url'] = $linked && ($item['series'] ?? '') !== '' ? Url::fromRoute('palefire_search.page', [], ['query' => [
+        'q' => $query,
+        'mode' => 'special',
+        'refine' => ['archive:' . SearchSources::SERIES . $item['series']],
+      ]])->toString() : NULL;
+    }
+    return $items;
+  }
+
+  /**
+   * Whether a source narrows by series and the index has that field. Until the
+   * field is indexed as a String, its series are neither offered nor searched.
+   */
+  private function hasSeries(IndexInterface $index, array $definition): bool {
+    return isset($definition['series_field']) && $index->getField($definition['series_field'])?->getType() === 'string';
+  }
+
+  /**
+   * How many of a source's records of its series type match the search, by
+   * series, A to Z. Empty where the source has no series or none match.
+   */
+  public function seriesCounts(string $source_key, string $query): array {
+    $definition = SearchSources::get($source_key);
+    $search = isset($definition['series_type']) ? $this->build([$source_key], $query, [$source_key => [$definition['series_type']]]) : NULL;
+    if (!$search || !$this->hasSeries($search->getIndex(), $definition)) {
+      return [];
+    }
+    // The matching records' IDs only, then their series from the field's table.
+    $search->range(0, self::MERGE_LIMIT);
+    $ids = [];
+    foreach (array_keys($search->execute()->getResultItems()) as $id) {
+      if (preg_match('#^entity:node/(\d+):#', $id, $m)) {
+        $ids[] = (int) $m[1];
+      }
+    }
+    if (!$ids) {
+      return [];
+    }
+    $field = $definition['series_field'];
+    $select = \Drupal::database()->select('node__' . $field, 's');
+    $select->addField('s', $field . '_value', 'series');
+    $select->addExpression('COUNT(DISTINCT s.entity_id)', 'records');
+    $select->condition('s.entity_id', $ids, 'IN')
+      ->condition('s.deleted', 0)
+      ->groupBy('series');
+    $counts = [];
+    foreach ($select->execute() as $row) {
+      $name = trim((string) $row->series);
+      if ($name !== '') {
+        $counts[$name] = ($counts[$name] ?? 0) + (int) $row->records;
+      }
+    }
+    ksort($counts, SORT_NATURAL | SORT_FLAG_CASE);
+    return $counts;
   }
 
   /**
@@ -484,8 +550,21 @@ class LocalSearch {
   private function sourceConditions(QueryInterface $search, array $definition, array $refine): ConditionGroupInterface {
     $group = $search->createConditionGroup('AND');
 
+    // A series narrows to that series' records of its type (Oral histories).
+    $series = [];
+    foreach ($refine as $index => $option) {
+      if (str_starts_with((string) $option, SearchSources::SERIES)) {
+        $series[] = substr((string) $option, strlen(SearchSources::SERIES));
+        unset($refine[$index]);
+      }
+    }
+    if ($series && $this->hasSeries($search->getIndex(), $definition)) {
+      $group->addCondition($definition['series_field'], $series, 'IN');
+      $group->addCondition($definition['refine_field'], [$definition['series_type']], 'IN');
+    }
+
     if ($refine && isset($definition['refine_field'])) {
-      $group->addCondition($definition['refine_field'], array_map('strval', $refine), 'IN');
+      $group->addCondition($definition['refine_field'], array_map('strval', array_values($refine)), 'IN');
     }
     if (isset($definition['record_types'])) {
       $group->addCondition($definition['refine_field'], $definition['record_types'], 'IN');
@@ -587,6 +666,8 @@ class LocalSearch {
       // A finding aid's or abstract's PDF, which finds its Catalog record.
       'archive_pdf' => $node->bundle() === 'archive_record' ? ResultText::archivePdf($url) : NULL,
       'summary_from_catalog' => $this->isOralHistory($node),
+      // The series an oral history belongs to; search() adds its link.
+      'series' => $this->isOralHistory($node) ? trim($this->text($node, 'field_series')) : '',
       'meta' => ResultText::clean($meta),
       'source' => count($source_keys) > 1 ? ($this->sourceOf($node, $source_keys)['label'] ?? NULL) : NULL,
       'image' => !empty($this->sourceOf($node, $source_keys)['images']) ? $this->image($node) : NULL,

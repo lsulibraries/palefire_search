@@ -353,7 +353,10 @@ class SearchController extends ControllerBase {
     $refines = [];
     foreach (array_filter((array) ($parameters['refine'] ?? []), 'is_string') as $value) {
       [$key, $option] = array_pad(explode(':', $value, 2), 2, '');
-      $allowed = isset(SearchSources::get($key)['refine_options'][$option]) || ($option === self::ANY && isset($mode['refine_defaults'][$key]));
+      $allowed = isset(SearchSources::get($key)['refine_options'][$option])
+        || ($option === self::ANY && isset($mode['refine_defaults'][$key]))
+        // A series is any name: it only narrows, so an unknown one finds nothing.
+        || (isset(SearchSources::get($key)['series_field']) && str_starts_with($option, SearchSources::SERIES) && mb_strlen($option) <= 255);
       if (in_array($key, $mode['sources'], TRUE) && $allowed) {
         $refines[$key][] = $option;
       }
@@ -686,6 +689,23 @@ class SearchController extends ControllerBase {
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
         $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
+      // Its series, under the type they narrow, once that type or a series is
+      // chosen: a long list, only worth showing to someone looking there.
+      if (isset($definition['series_type'])) {
+        $series = array_values(array_filter($refines[$key] ?? [], static fn(string $option): bool => str_starts_with($option, SearchSources::SERIES)));
+        if ($series || in_array($definition['series_type'], $refines[$key] ?? [], TRUE)) {
+          $counts = $this->local->seriesCounts($key, $query);
+          // A chosen series stays, to be taken off, though nothing matches now.
+          foreach ($series as $option) {
+            $counts += [substr($option, strlen(SearchSources::SERIES)) => 0];
+          }
+          foreach ($counts as $name => $count) {
+            $value = SearchSources::SERIES . $name;
+            $checked = in_array($value, $series, TRUE);
+            $options[] = ['label' => (string) $name, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked, 'series' => TRUE];
+          }
+        }
+      }
       if ($options && !empty($definition['refine_nested'])) {
         // Under its source's own option, as a narrower choice of it.
         foreach ($groups[0]['options'] as &$source) {
@@ -770,7 +790,7 @@ class SearchController extends ControllerBase {
           $without[$key][] = self::ANY;
         }
         $chips[] = [
-          'label' => SearchSources::get($key)['refine_options'][$option],
+          'label' => str_starts_with($option, SearchSources::SERIES) ? substr($option, strlen(SearchSources::SERIES)) : SearchSources::get($key)['refine_options'][$option],
           'url' => $this->address($mode_key, $query, $chosen, array_filter($without), $sort, $years),
         ];
       }

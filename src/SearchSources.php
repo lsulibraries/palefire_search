@@ -43,6 +43,12 @@ final class SearchSources {
    * finds oral histories by the people interviewed or interviewing. A field
    * missing from the index is skipped.
    */
+  /**
+   * How a series is written as a filter's option: archive:series:University
+   * History.
+   */
+  public const SERIES = 'series:';
+
   public const INDEX_FIELDS = [
     'author' => ['field_interviewee', 'field_interviewer', 'field_principal_interviewers', 'field_principal_interviewers_1'],
     'title' => ['title', 'field_title', 'field_book_title', 'field_course_title', 'field_collection_name'],
@@ -304,6 +310,11 @@ final class SearchSources {
         ],
         // Its one filter sits under the source itself, not in a group of its own.
         'refine_nested' => TRUE,
+        // Oral histories narrow further by series, offered once Oral histories
+        // or a series is chosen. Needs the field in the index as a String
+        // (LocalSearch::hasSeries()).
+        'series_field' => 'field_series',
+        'series_type' => 'oral_history',
       ],
       'pages' => [
         'label' => 'Pages',
