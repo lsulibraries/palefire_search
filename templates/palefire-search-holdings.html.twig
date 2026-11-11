@@ -18,6 +18,15 @@
 #}
 {% macro why(entry) %}{{ entry.reason ?: 'Ask at the library'|t }}{% if entry.due %}, {{ 'due @date'|t({'@date': entry.due}) }}{% endif %}{% endmacro %}
 {% macro out(url, label, about) %}<a class="pf-button--secondary" href="{{ url }}">{{ label }}{% if about %}<span class="visually-hidden">: {{ about }}</span>{% endif %}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>{% endmacro %}
+{# A record's detail: a Catalog search for it where that finds more like it.
+   A long text shows four lines until Read more (index-search.js). #}
+{% macro detail(item, search) %}
+  {%- if search -%}
+    <a class="pf-index-row__about-link" href="{{ path('palefire_search.page', {}, {'query': {'q': item.query, 'source': ['catalog']}}) }}">{{ item.text }}</a>
+  {%- else -%}
+    <span class="pf-index-row__about-text" data-pf-index-clamp>{{ item.text }}</span>
+  {%- endif -%}
+{% endmacro %}
 {% import _self as holdings %}
 {% for record in records %}
   {# One shelf of numbered items: the list's row names the first item's call
@@ -147,6 +156,36 @@
               </table>
             </section>
           {% endfor %}
+          {# What the record says beyond its row, after its copies: the panel
+             opens to say where the item is. #}
+          {% if record.details %}
+            {% set about_id = 'pf-index-about-' ~ (record.key ?: record.id)|clean_class %}
+            <section class="pf-index-row__about" aria-labelledby="{{ about_id }}">
+              <h4 class="pf-index-row__about-title" id="{{ about_id }}">{{ 'About this item'|t }}</h4>
+              <dl class="pf-index-row__about-list">
+                {% for group in record.details %}
+                  <div class="pf-index-row__about-group">
+                    <dt>{{ group.label|t }}</dt>
+                    {% for item in group.items %}
+                      <dd>{{ holdings.detail(item, group.search) }}</dd>
+                    {% endfor %}
+                    {% if group.more %}
+                      <dd class="pf-index-row__about-fold">
+                        <details>
+                          <summary><span class="pf-index-row__fold-closed">{{ '@count more'|t({'@count': group.more|length}) }}</span><span class="pf-index-row__fold-open">{{ 'Show fewer'|t }}</span><span class="visually-hidden"> {{ group.label|t }}</span></summary>
+                          <ul>
+                            {% for item in group.more %}
+                              <li>{{ holdings.detail(item, group.search) }}</li>
+                            {% endfor %}
+                          </ul>
+                        </details>
+                      </dd>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </dl>
+            </section>
+          {% endif %}
           {# What the panel covered, and the way to everything it leaves out. #}
           <div class="pf-index-row__foot">
             <p class="pf-index-row__foot-count">

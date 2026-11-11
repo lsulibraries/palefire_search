@@ -117,6 +117,68 @@ class CatalogSearch {
   private const ITEMS_SHOWN = 20;
 
   /**
+   * The record's fields its copies panel shows, by MARC tag, in order, and the
+   * name each is shown under. The row already has the title, author, year and
+   * call number. Left out: who gave an item (541) and where it has been
+   * (561), and access links, which the row's buttons use.
+   */
+  private const DETAILS = [
+    '520' => 'Summary',
+    '505' => 'Contents',
+    '260' => 'Published',
+    '264' => 'Published',
+    '250' => 'Edition',
+    '300' => 'Physical description',
+    '255' => 'Scale',
+    '310' => 'Frequency',
+    '321' => 'Former frequency',
+    '362' => 'Issues',
+    '515' => 'Numbering',
+    '490' => 'Series',
+    '773' => 'Part of',
+    '780' => 'Earlier title',
+    '785' => 'Later title',
+    '246' => 'Also titled',
+    '500' => 'Notes',
+    '501' => 'Notes',
+    '590' => 'Local note',
+    '502' => 'Dissertation',
+    '504' => 'Bibliography',
+    '508' => 'Credits',
+    '511' => 'Cast',
+    '518' => 'Recorded',
+    '521' => 'Audience',
+    '545' => 'Background',
+    '546' => 'Language',
+    '550' => 'Issued by',
+    '580' => 'Related titles',
+    '530' => 'Other formats',
+    '533' => 'Reproduction',
+    '538' => 'System details',
+    '600' => 'Subjects',
+    '610' => 'Subjects',
+    '611' => 'Subjects',
+    '630' => 'Subjects',
+    '650' => 'Subjects',
+    '651' => 'Subjects',
+    '655' => 'Genre',
+    '700' => 'Other names',
+    '710' => 'Other names',
+    '711' => 'Other names',
+  ];
+
+  /**
+   * Details each of whose values links to a Catalog search for it.
+   */
+  private const DETAILS_SEARCHED = ['Series', 'Earlier title', 'Later title', 'Subjects', 'Genre', 'Other names'];
+
+  /**
+   * How many values of one detail show before the rest fold.
+   */
+  private const DETAILS_SHOWN = 6;
+
+
+  /**
    * The place an online copy lives, and the call number it has there.
    */
   private const ONLINE = 'ONLINE';
@@ -582,7 +644,60 @@ class CatalogSearch {
       'title' => $about['title'],
       'url' => $url,
       'copies' => $copies,
+      'details' => $this->details($title),
     ];
+  }
+
+  /**
+   * What a record says about itself beyond its row, for its copies panel.
+   *
+   * From the fields the holdings request already brings, in DETAILS' order,
+   * under the page's own names. Tags with the same name (260 and 264, the
+   * notes, the subjects) are one group. A long list folds after DETAILS_SHOWN;
+   * a long text folds on the page (index-search.js).
+   *
+   * @return array
+   *   Each [label, search (TRUE where each value is a search of its own),
+   *   items, more], items and more each [text, query].
+   */
+  private function details(array $title): array {
+    $found = [];
+    foreach ($title['BibliographicInfo']['MarcEntryInfo'] ?? [] as $entry) {
+      $tag = (string) ($entry['entryID'] ?? '');
+      $text = trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags((string) ($entry['text'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
+      if (!isset(self::DETAILS[$tag]) || $text === '') {
+        continue;
+      }
+      $subject = $tag[0] === '6';
+      // A note or heading from a list other than the catalog's own ends with
+      // that list's code: "Politics. ericd", "Feminism fast".
+      if ($subject || $tag[0] === '5') {
+        $text = preg_replace($subject && substr((string) ($entry['indicators'] ?? ''), 1, 1) === '7' ? '/\s+[a-z]{2,10}$/' : '/(?<=\.)\s+[a-z]{3,8}$/', '', $text) ?? $text;
+      }
+      $lines = $tag === '505' ? preg_split('/\s+--\s+/u', $text) : [$text];
+      foreach ($lines as $line) {
+        $line = $subject || $tag[0] === '7' || $tag === '490' ? $this->withoutFinalPeriod($line) : $line;
+        $found[self::DETAILS[$tag]][] = [
+          'text' => $subject ? (preg_replace('/\s*--\s*/u', ' — ', $line) ?? $line) : $line,
+          'query' => $subject ? trim(preg_replace('/\s*--\s*/u', ' ', $line) ?? $line) : $line,
+        ];
+      }
+    }
+
+    $groups = [];
+    foreach (array_unique(self::DETAILS) as $label) {
+      if (empty($found[$label])) {
+        continue;
+      }
+      $items = array_values(array_unique($found[$label], SORT_REGULAR));
+      $groups[] = [
+        'label' => $label,
+        'search' => in_array($label, self::DETAILS_SEARCHED, TRUE),
+        'items' => array_slice($items, 0, self::DETAILS_SHOWN),
+        'more' => array_slice($items, self::DETAILS_SHOWN),
+      ];
+    }
+    return $groups;
   }
 
   /**
