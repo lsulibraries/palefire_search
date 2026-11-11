@@ -349,9 +349,22 @@ class SearchController extends ControllerBase {
    *   The chosen sources, and the refinements keyed by source.
    */
   private function selection(array $parameters, array $mode): array {
-    $chosen = array_values(array_intersect($mode['sources'], array_filter((array) ($parameters['source'] ?? []), 'is_string')));
+    $sources = array_filter((array) ($parameters['source'] ?? []), 'is_string');
+    $refine = array_filter((array) ($parameters['refine'] ?? []), 'is_string');
+    // Oral histories were a record type of PDF Finding Aids until 2026-11-11:
+    // addresses from then, saved or shared, find them as their own source.
+    foreach ($refine as $index => $value) {
+      if ($value === 'archive:oral_history') {
+        $sources[] = 'oral_histories';
+        unset($refine[$index]);
+      }
+      elseif (str_starts_with($value, 'archive:' . SearchSources::SERIES)) {
+        $refine[$index] = 'oral_histories:' . substr($value, strlen('archive:'));
+      }
+    }
+    $chosen = array_values(array_intersect($mode['sources'], array_unique($sources)));
     $refines = [];
-    foreach (array_filter((array) ($parameters['refine'] ?? []), 'is_string') as $value) {
+    foreach ($refine as $value) {
       [$key, $option] = array_pad(explode(':', $value, 2), 2, '');
       $allowed = isset(SearchSources::get($key)['refine_options'][$option])
         || ($option === self::ANY && isset($mode['refine_defaults'][$key]))
@@ -675,6 +688,18 @@ class SearchController extends ControllerBase {
     // the mode leads with it. Each option is a query, so not all at once.
     foreach (array_unique([...($mode['refine_sources'] ?? []), ...$selected]) as $key) {
       $definition = SearchSources::get($key);
+      // Its series, one at a time from a list under the source, once it or a
+      // series is chosen. Every series is listed, those with no match disabled,
+      // so the list is the same from one search to the next. A list keeps long
+      // names whole and the filter one row tall, however many series there are.
+      if (isset($definition['series_field']) && in_array($key, $selected, TRUE) && ($series_select = $this->seriesSelect($key, $refines[$key] ?? [], $query))) {
+        foreach ($groups[0]['options'] as &$source) {
+          if ($source['value'] === $key) {
+            $source['sub'] = ['name' => 'refine[]', 'options' => [], 'series' => $series_select];
+          }
+        }
+        unset($source);
+      }
       if (!isset($definition['refine_options'])) {
         continue;
       }
@@ -689,30 +714,11 @@ class SearchController extends ControllerBase {
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
         $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
-      // Its series, one at a time from a list under the type they narrow, once
-      // that type or a series is chosen. A list keeps long names whole and the
-      // filter one row tall, however many series there are.
-      $series_select = NULL;
-      if (isset($definition['series_type'])) {
-        $series = array_values(array_filter($refines[$key] ?? [], static fn(string $option): bool => str_starts_with($option, SearchSources::SERIES)));
-        if ($series || in_array($definition['series_type'], $refines[$key] ?? [], TRUE)) {
-          $counts = $this->local->seriesCounts($key, $query);
-          // A chosen series stays, to be taken off, though nothing matches now.
-          foreach ($series as $option) {
-            $counts += [substr($option, strlen(SearchSources::SERIES)) => 0];
-          }
-          $series_select = ['name' => 'refine[]', 'options' => []];
-          foreach ($counts as $name => $count) {
-            $value = $key . ':' . SearchSources::SERIES . $name;
-            $series_select['options'][] = ['label' => (string) $name, 'value' => $value, 'count' => $count, 'selected' => $value === $key . ':' . ($series[0] ?? '')];
-          }
-        }
-      }
       if ($options && !empty($definition['refine_nested'])) {
         // Under its source's own option, as a narrower choice of it.
         foreach ($groups[0]['options'] as &$source) {
           if ($source['value'] === $key) {
-            $source['sub'] = ['name' => 'refine[]', 'options' => $options, 'series' => $series_select];
+            $source['sub'] = ['name' => 'refine[]', 'options' => $options, 'series' => $source['sub']['series'] ?? NULL];
           }
         }
         unset($source);
@@ -728,6 +734,33 @@ class SearchController extends ControllerBase {
     }
     $groups[0]['all'] = ['label' => $this->t('All sources'), 'checked' => !$narrowed];
     return $groups;
+  }
+
+  /**
+   * A source's series list: every series, with how many match, or NULL if the
+   * index doesn't have its series yet. A chosen series stays, to be taken off,
+   * though nothing matches now.
+   */
+  private function seriesSelect(string $key, array $refine, string $query): ?array {
+    $counts = $this->local->seriesCounts($key, $query);
+    if (!$counts) {
+      return NULL;
+    }
+    $chosen = '';
+    foreach ($refine as $option) {
+      if (str_starts_with($option, SearchSources::SERIES)) {
+        $chosen = substr($option, strlen(SearchSources::SERIES));
+        $counts += [$chosen => 0];
+        break;
+      }
+    }
+    $options = [];
+    foreach ($counts as $name => $count) {
+      $name = (string) $name;
+      $selected = $name === $chosen;
+      $options[] = ['label' => $name, 'value' => $key . ':' . SearchSources::SERIES . $name, 'count' => $count, 'selected' => $selected, 'disabled' => $count === 0 && !$selected];
+    }
+    return ['name' => 'refine[]', 'options' => $options];
   }
 
   /**

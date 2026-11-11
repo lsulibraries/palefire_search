@@ -3,10 +3,13 @@
 Combined Search (working name "the Index"): the search page at `/v2/search`, in the Palefire theme.
 
 - **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
-  E-Textbooks, PDF Finding Aids): direct Search API queries on the
-  `bento_search` index, matching all words. PDF Finding Aids searches only
-  finding aids and oral history abstracts, with Oral histories as a filter
-  under it.
+  E-Textbooks, PDF Finding Aids, Oral histories): direct Search API queries on
+  the `bento_search` index, matching all words. PDF Finding Aids searches
+  finding aids and Oral histories the oral history abstracts, each an archive
+  record type (`record_field`/`record_types` in `SearchSources`). Oral
+  histories has a Series list under it listing every series, those with no
+  match disabled. Old addresses (`refine[]=archive:oral_history`,
+  `archive:series:…`) still work: they're read as the Oral histories source.
 - **External sources** (Discovery, Catalog, Journals, Research Guides): each from
   its own service. Their sections load after the page.
 - **Links only** (Scholarly Repository).
@@ -48,7 +51,7 @@ drush en palefire_search
 drush cr
 ```
 
-In the `bento_search` index, turn on the processor **Archive records: finding aids and oral histories only** (Processors tab), then reindex. It leaves out the archive records the search never shows, such as Breaux Data, which were most of the index. Oral histories filter by series once `field_series` is in the index as a String.
+In the `bento_search` index, turn on the processor **Archive records: finding aids and oral histories only** (Processors tab), then reindex. It leaves out the archive records the search never shows, such as Breaux Data, which were most of the index. It keeps every record type a source searches (finding aids and oral histories). Oral histories filter by series once `field_series` is in the index as a String.
 
 ## Oral history series
 

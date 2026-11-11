@@ -36,14 +36,19 @@ class ArchivePdfsOnly extends ProcessorPluginBase {
    * {@inheritdoc}
    */
   public function alterIndexedItems(array &$items) {
-    $definition = SearchSources::get('archive');
+    // Each archive record type a source searches: both PDF Finding Aids' and
+    // Oral histories'.
+    $kept = [];
     foreach ($items as $id => $item) {
       $node = $item->getOriginalObject()?->getValue();
-      if (!$node instanceof NodeInterface || !in_array($node->bundle(), $definition['types'], TRUE) || !$node->hasField($definition['refine_field'])) {
+      if (!$node instanceof NodeInterface) {
         continue;
       }
-      if (!in_array((string) $node->get($definition['refine_field'])->value, $definition['record_types'], TRUE)) {
-        unset($items[$id]);
+      $kept[$node->bundle()] ??= SearchSources::recordTypes($node->bundle());
+      foreach ($kept[$node->bundle()] as $field => $types) {
+        if ($node->hasField($field) && !in_array((string) $node->get($field)->value, $types, TRUE)) {
+          unset($items[$id]);
+        }
       }
     }
   }

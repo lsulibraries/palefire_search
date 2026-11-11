@@ -202,7 +202,7 @@
                     <select id="{{ series_id }}" name="{{ option.sub.series.name }}">
                       <option value="">{{ 'All series'|t }}</option>
                       {% for entry in option.sub.series.options %}
-                        <option value="{{ entry.value }}"{% if entry.selected %} selected{% endif %}>{{ entry.label }} ({{ entry.count|number_format }})</option>
+                        <option value="{{ entry.value }}"{% if entry.selected %} selected{% endif %}{% if entry.disabled %} disabled{% endif %}>{{ entry.label }} ({{ entry.count|number_format }})</option>
                       {% endfor %}
                     </select>
                   </div>

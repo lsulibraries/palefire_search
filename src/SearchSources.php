@@ -44,7 +44,7 @@ final class SearchSources {
    * missing from the index is skipped.
    */
   /**
-   * How a series is written as a filter's option: archive:series:University
+   * How a series is written as a filter's option: oral_histories:series:University
    * History.
    */
   public const SERIES = 'series:';
@@ -78,27 +78,25 @@ final class SearchSources {
       'all' => [
         'label' => 'All',
         'layout' => 'sections',
-        'sources' => ['articles', 'catalog', 'databases', 'guides', 'archive', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
+        'sources' => ['articles', 'catalog', 'databases', 'guides', 'archive', 'oral_histories', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
         'upcoming' => ['alma'],
         'links' => ['repository'],
       ],
       'research' => [
         'label' => 'Research',
         'layout' => 'sections',
-        'sources' => ['catalog', 'articles', 'journals', 'databases', 'etextbooks', 'guides', 'archive'],
+        'sources' => ['catalog', 'articles', 'journals', 'databases', 'etextbooks', 'guides', 'archive', 'oral_histories'],
         'upcoming' => ['alma'],
         'links' => ['repository'],
       ],
       'special' => [
         'label' => 'Special Collections',
         'layout' => 'merged',
-        'sources' => ['catalog', 'special_guides', 'archive'],
+        'sources' => ['catalog', 'special_guides', 'archive', 'oral_histories'],
         // Shown above the merged list until a source is chosen: a merged list can't
         // hold an outside source. list_label names the list under it.
         'lead' => ['catalog', 'special_guides'],
-        'list_label' => 'PDF Finding Aids',
-        // Oral histories is this mode's main filter, so it's always offered.
-        'refine_sources' => ['archive'],
+        'list_label' => 'Finding aids and oral histories',
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
         // With the Catalog's Special Collections filter taken off, and none of
@@ -106,7 +104,7 @@ final class SearchSources {
         // there with everything else it had.
         'unless' => [
           'refine' => ['catalog' => 'library_special'],
-          'sources' => ['archive', 'special_guides'],
+          'sources' => ['archive', 'oral_histories', 'special_guides'],
           'mode' => 'research',
         ],
         'upcoming' => ['alma'],
@@ -285,37 +283,41 @@ final class SearchSources {
         'kind' => 'local',
         'types' => ['e_books'],
       ],
+      // Archive records are two sources, one per record type, searched through
+      // their PDFs. The rest of the archive records, such as Breaux Data, aren't
+      // part of the Index: the index leaves them out once its "Archive records:
+      // finding aids and oral histories only" processor is on (ArchivePdfsOnly),
+      // and record_types keeps them out either way. record_field names the
+      // field record_types are read from.
       'archive' => [
         'label' => 'PDF Finding Aids',
-        'about' => 'Special Collections finding aids and oral history abstracts, searched through the full text of each PDF.',
+        'about' => 'Special Collections finding aids, searched through the full text of each PDF.',
         'kind' => 'local',
         'types' => ['archive_record'],
-        // Only these record types are searched: the PDFs. The rest of the
-        // archive records, such as Breaux Data, aren't part of the Index. The
-        // index leaves them out once its "Archive records: finding aids and oral
-        // histories only" processor is on (ArchivePdfsOnly); this keeps them out
-        // either way.
-        'record_types' => ['finding_aid', 'oral_history'],
-        // Records of these types with no PDF are left out: oral histories not
-        // yet processed, which are to leave the index.
-        'needs_url' => ['oral_history'],
+        'record_field' => 'field_record_type',
+        'record_types' => ['finding_aid'],
         // What each record type is called on its result.
         'record_labels' => [
           'finding_aid' => 'Finding aid',
+        ],
+      ],
+      'oral_histories' => [
+        'label' => 'Oral histories',
+        'about' => 'Interviews from the T. Harry Williams Center for Oral History, searched through the full text of each abstract PDF.',
+        'kind' => 'local',
+        'types' => ['archive_record'],
+        'record_field' => 'field_record_type',
+        'record_types' => ['oral_history'],
+        // Records of these types with no PDF are left out: oral histories not
+        // yet processed, which are to leave the index.
+        'needs_url' => ['oral_history'],
+        'record_labels' => [
           'oral_history' => 'Oral history',
         ],
-        'refine_field' => 'field_record_type',
-        'refine_label' => 'Record type',
-        'refine_options' => [
-          'oral_history' => 'Oral histories',
-        ],
-        // Its one filter sits under the source itself, not in a group of its own.
-        'refine_nested' => TRUE,
-        // Oral histories narrow further by series, offered once Oral histories
-        // or a series is chosen. Needs the field in the index as a String
-        // (LocalSearch::hasSeries()).
+        // Narrowed by series, from a list under the source once it or a series
+        // is chosen. Needs the field in the index as a String
+        // (LocalSearch::hasSeries()). The series are OralHistorySeries'.
         'series_field' => 'field_series',
-        'series_type' => 'oral_history',
       ],
       'pages' => [
         'label' => 'Pages',
@@ -394,6 +396,32 @@ final class SearchSources {
    */
   public static function get(string $key): ?array {
     return self::all()[$key] ?? NULL;
+  }
+
+  /**
+   * What a record type is called on its result, from the source of that type.
+   */
+  public static function recordLabel(string $type): string {
+    foreach (self::all() as $definition) {
+      if (isset($definition['record_labels'][$type])) {
+        return $definition['record_labels'][$type];
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Every record type a source of these node types searches, as field =>
+   * record types. What ArchivePdfsOnly keeps in the index.
+   */
+  public static function recordTypes(string $bundle): array {
+    $types = [];
+    foreach (self::all() as $definition) {
+      if (isset($definition['record_field'], $definition['record_types']) && in_array($bundle, $definition['types'] ?? [], TRUE)) {
+        $types[$definition['record_field']] = array_merge($types[$definition['record_field']] ?? [], $definition['record_types']);
+      }
+    }
+    return $types;
   }
 
   /**

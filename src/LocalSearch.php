@@ -115,14 +115,14 @@ class LocalSearch {
    * series, in Special Collections mode, where its filter is.
    */
   private function withSeriesLinks(array $items, string $query): array {
-    $definition = SearchSources::get('archive');
+    $definition = SearchSources::get('oral_histories');
     $index = $this->entityTypeManager->getStorage('search_api_index')->load(SearchSources::INDEX);
     $linked = $index instanceof IndexInterface && $this->hasSeries($index, $definition);
     foreach ($items as &$item) {
       $item['series_url'] = $linked && ($item['series'] ?? '') !== '' ? Url::fromRoute('palefire_search.page', [], ['query' => [
         'q' => $query,
         'mode' => 'special',
-        'refine' => ['archive:' . SearchSources::SERIES . $item['series']],
+        'refine' => ['oral_histories:' . SearchSources::SERIES . $item['series']],
       ]])->toString() : NULL;
     }
     return $items;
@@ -137,38 +137,57 @@ class LocalSearch {
   }
 
   /**
-   * How many of a source's records of its series type match the search, by
-   * series, A to Z. Empty where the source has no series or none match.
+   * Every series of a source, A to Z, with how many of its records match the
+   * search: 0 where none do. The series are OralHistorySeries' and any other a
+   * record of the source has. Empty where the source has no series.
    */
   public function seriesCounts(string $source_key, string $query): array {
     $definition = SearchSources::get($source_key);
-    $search = isset($definition['series_type']) ? $this->build([$source_key], $query, [$source_key => [$definition['series_type']]]) : NULL;
-    if (!$search || !$this->hasSeries($search->getIndex(), $definition)) {
-      return [];
-    }
-    // The matching records' IDs only, then their series from the field's table.
-    $search->range(0, self::MERGE_LIMIT);
-    $ids = [];
-    foreach (array_keys($search->execute()->getResultItems()) as $id) {
-      if (preg_match('#^entity:node/(\d+):#', $id, $m)) {
-        $ids[] = (int) $m[1];
-      }
-    }
-    if (!$ids) {
+    $index = $this->entityTypeManager->getStorage('search_api_index')->load(SearchSources::INDEX);
+    if (!$definition || !$index instanceof IndexInterface || !$this->hasSeries($index, $definition)) {
       return [];
     }
     $field = $definition['series_field'];
-    $select = \Drupal::database()->select('node__' . $field, 's');
-    $select->addField('s', $field . '_value', 'series');
-    $select->addExpression('COUNT(DISTINCT s.entity_id)', 'records');
-    $select->condition('s.entity_id', $ids, 'IN')
-      ->condition('s.deleted', 0)
-      ->groupBy('series');
-    $counts = [];
-    foreach ($select->execute() as $row) {
-      $name = trim((string) $row->series);
+    $database = \Drupal::database();
+
+    // Every series, matched or not.
+    $counts = array_fill_keys(array_values(OralHistorySeries::FOLDERS), 0);
+    $named = $database->select('node__' . $field, 's');
+    $named->join('node__' . $definition['record_field'], 't', 't.entity_id = s.entity_id AND t.deleted = 0');
+    $named->addField('s', $field . '_value', 'series');
+    $named->condition('s.deleted', 0)
+      ->condition('t.' . $definition['record_field'] . '_value', $definition['record_types'], 'IN')
+      ->distinct();
+    foreach ($named->execute()->fetchCol() as $name) {
+      $name = trim((string) $name);
       if ($name !== '') {
-        $counts[$name] = ($counts[$name] ?? 0) + (int) $row->records;
+        $counts[$name] ??= 0;
+      }
+    }
+
+    // The matching records' IDs only, then their series from the field's table.
+    $search = $this->build([$source_key], $query, []);
+    $ids = [];
+    if ($search) {
+      $search->range(0, self::MERGE_LIMIT);
+      foreach (array_keys($search->execute()->getResultItems()) as $id) {
+        if (preg_match('#^entity:node/(\d+):#', $id, $m)) {
+          $ids[] = (int) $m[1];
+        }
+      }
+    }
+    if ($ids) {
+      $select = $database->select('node__' . $field, 's');
+      $select->addField('s', $field . '_value', 'series');
+      $select->addExpression('COUNT(DISTINCT s.entity_id)', 'records');
+      $select->condition('s.entity_id', $ids, 'IN')
+        ->condition('s.deleted', 0)
+        ->groupBy('series');
+      foreach ($select->execute() as $row) {
+        $name = trim((string) $row->series);
+        if ($name !== '') {
+          $counts[$name] = ($counts[$name] ?? 0) + (int) $row->records;
+        }
       }
     }
     ksort($counts, SORT_NATURAL | SORT_FLAG_CASE);
@@ -560,14 +579,13 @@ class LocalSearch {
     }
     if ($series && $this->hasSeries($search->getIndex(), $definition)) {
       $group->addCondition($definition['series_field'], $series, 'IN');
-      $group->addCondition($definition['refine_field'], [$definition['series_type']], 'IN');
     }
 
     if ($refine && isset($definition['refine_field'])) {
       $group->addCondition($definition['refine_field'], array_map('strval', array_values($refine)), 'IN');
     }
     if (isset($definition['record_types'])) {
-      $group->addCondition($definition['refine_field'], $definition['record_types'], 'IN');
+      $group->addCondition($definition['record_field'], $definition['record_types'], 'IN');
     }
     if (!empty($definition['needs_url']) && ($missing = $this->withoutUrl($definition['needs_url']))) {
       $group->addCondition('search_api_id', $missing, 'NOT IN');
@@ -626,7 +644,7 @@ class LocalSearch {
         // interview in it: its row takes the interview's own Summary from its
         // Catalog record once the holdings load (index-search.js).
         $this->isOralHistory($node) ? '' : ($this->text($node, 'field_summary') ?: $this->text($node, 'field_description')),
-        SearchSources::get('archive')['record_labels'][$this->text($node, 'field_record_type')] ?? '',
+        SearchSources::recordLabel($this->text($node, 'field_record_type')),
         $this->linkField($node, ['field_record_url']),
       ],
       'article' => [
@@ -816,6 +834,10 @@ class LocalSearch {
         continue;
       }
       if (isset($definition['not_categories']) && in_array($category, $definition['not_categories'], TRUE)) {
+        continue;
+      }
+      // Archive records are one source per record type.
+      if (isset($definition['record_types']) && !in_array($this->text($node, $definition['record_field']), $definition['record_types'], TRUE)) {
         continue;
       }
       return $definition;
