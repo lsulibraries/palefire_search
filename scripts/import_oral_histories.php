@@ -127,20 +127,30 @@ $added = 0;
 $failed = [];
 foreach ($folders as $folder => $series) {
   $feed = $get(PF_OH_FEED . rawurlencode('oralhistory ' . $folder));
-  $xml = $feed ? @simplexml_load_string($feed) : FALSE;
-  if (!$xml) {
+  if ($feed === NULL) {
     $failed[] = $folder;
-    echo "$folder: the Catalog couldn't be read. Skipped." . PHP_EOL;
+    echo "$folder: the Catalog didn't answer. Skipped." . PHP_EOL;
     continue;
   }
-  $xml->registerXPathNamespace('a', 'http://www.w3.org/2005/Atom');
+  // The feed is sent as a web page, so its host adds a script after the end,
+  // which a strict reader rejects (as CatalogSearch::parseFeed()).
+  $end = strrpos($feed, '</feed>');
+  $feed = $end === FALSE ? $feed : substr($feed, 0, $end + strlen('</feed>'));
+  $previous = libxml_use_internal_errors(TRUE);
+  $xml = simplexml_load_string($feed, \SimpleXMLElement::class, LIBXML_NONET);
+  libxml_clear_errors();
+  libxml_use_internal_errors($previous);
+  if ($xml === FALSE) {
+    $failed[] = $folder;
+    echo "$folder: the Catalog's answer couldn't be read. Skipped." . PHP_EOL;
+    continue;
+  }
 
   // Each abstract in this folder, with the record that links it.
   $abstracts = [];
-  foreach ($xml->xpath('//a:entry') ?: [] as $entry) {
-    $entry->registerXPathNamespace('a', 'http://www.w3.org/2005/Atom');
-    $id = preg_match('/:(\d+)$/', (string) ($entry->xpath('a:id')[0] ?? ''), $m) ? $m[1] : NULL;
-    $content = html_entity_decode((string) ($entry->xpath('a:content')[0] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  foreach ($xml->entry as $entry) {
+    $id = preg_match('/:(\d+)$/', (string) $entry->id, $m) ? $m[1] : NULL;
+    $content = html_entity_decode((string) $entry->content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     preg_match_all('#href="([^"]+\.pdf)"#i', $content, $links);
     foreach ($links[1] as $link) {
       $path = $key($link);
