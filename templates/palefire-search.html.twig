@@ -187,12 +187,26 @@
                 {# A narrower choice of this source, set in under it. Its name says
                    which source it narrows, for anyone not seeing the indent. #}
                 {% for sub in option.sub.options ?? [] %}
-                  <label class="pf-index__option pf-index__option--sub{{ sub.series ? ' pf-index__option--series' }}">
+                  <label class="pf-index__option pf-index__option--sub">
                     <input type="checkbox" name="{{ option.sub.name }}" value="{{ sub.value }}"{% if sub.checked %} checked{% endif %}{% if sub.disabled %} disabled{% endif %}>
-                    <span class="pf-index__option-label">{{ sub.label }}<span class="visually-hidden"> {{ sub.series ? '(an oral history series)'|t : '(in @source)'|t({'@source': option.label}) }}</span></span>
+                    <span class="pf-index__option-label">{{ sub.label }}<span class="visually-hidden"> {{ '(in @source)'|t({'@source': option.label}) }}</span></span>
                     {% if sub.count is not null %}<span class="pf-index__count">{{ sub.count|number_format }}</span>{% endif %}
                   </label>
                 {% endfor %}
+                {# One series of the choice above (Oral histories), from a list
+                   that keeps long names whole. Choosing one searches at once. #}
+                {% if option.sub.series %}
+                  {% set series_id = 'pf-index-series-' ~ option.value|clean_class %}
+                  <div class="pf-index__option--sub pf-index__series">
+                    <label for="{{ series_id }}">{{ 'Series'|t }}<span class="visually-hidden"> {{ '(oral histories)'|t }}</span></label>
+                    <select id="{{ series_id }}" name="{{ option.sub.series.name }}">
+                      <option value="">{{ 'All series'|t }}</option>
+                      {% for entry in option.sub.series.options %}
+                        <option value="{{ entry.value }}"{% if entry.selected %} selected{% endif %}>{{ entry.label }} ({{ entry.count|number_format }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                {% endif %}
               {% endfor %}
             </fieldset>
           {% endfor %}

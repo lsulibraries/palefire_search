@@ -689,8 +689,10 @@ class SearchController extends ControllerBase {
         $checked = in_array($value, $refines[$key] ?? [], TRUE);
         $options[] = ['label' => $label, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
       }
-      // Its series, under the type they narrow, once that type or a series is
-      // chosen: a long list, only worth showing to someone looking there.
+      // Its series, one at a time from a list under the type they narrow, once
+      // that type or a series is chosen. A list keeps long names whole and the
+      // filter one row tall, however many series there are.
+      $series_select = NULL;
       if (isset($definition['series_type'])) {
         $series = array_values(array_filter($refines[$key] ?? [], static fn(string $option): bool => str_starts_with($option, SearchSources::SERIES)));
         if ($series || in_array($definition['series_type'], $refines[$key] ?? [], TRUE)) {
@@ -699,10 +701,10 @@ class SearchController extends ControllerBase {
           foreach ($series as $option) {
             $counts += [substr($option, strlen(SearchSources::SERIES)) => 0];
           }
+          $series_select = ['name' => 'refine[]', 'options' => []];
           foreach ($counts as $name => $count) {
-            $value = SearchSources::SERIES . $name;
-            $checked = in_array($value, $series, TRUE);
-            $options[] = ['label' => (string) $name, 'value' => $key . ':' . $value, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked, 'series' => TRUE];
+            $value = $key . ':' . SearchSources::SERIES . $name;
+            $series_select['options'][] = ['label' => (string) $name, 'value' => $value, 'count' => $count, 'selected' => $value === $key . ':' . ($series[0] ?? '')];
           }
         }
       }
@@ -710,7 +712,7 @@ class SearchController extends ControllerBase {
         // Under its source's own option, as a narrower choice of it.
         foreach ($groups[0]['options'] as &$source) {
           if ($source['value'] === $key) {
-            $source['sub'] = ['name' => 'refine[]', 'options' => $options];
+            $source['sub'] = ['name' => 'refine[]', 'options' => $options, 'series' => $series_select];
           }
         }
         unset($source);
@@ -722,7 +724,7 @@ class SearchController extends ControllerBase {
     // What no choice means, said in the list: every source.
     $narrowed = FALSE;
     foreach ($groups[0]['options'] as $source) {
-      $narrowed = $narrowed || $source['checked'] || in_array(TRUE, array_column($source['sub']['options'] ?? [], 'checked'), TRUE);
+      $narrowed = $narrowed || $source['checked'] || in_array(TRUE, array_column($source['sub']['options'] ?? [], 'checked'), TRUE) || in_array(TRUE, array_column($source['sub']['series']['options'] ?? [], 'selected'), TRUE);
     }
     $groups[0]['all'] = ['label' => $this->t('All sources'), 'checked' => !$narrowed];
     return $groups;
