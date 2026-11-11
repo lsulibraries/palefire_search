@@ -170,7 +170,7 @@ class CatalogSearch {
   /**
    * Details each of whose values links to a Catalog search for it.
    */
-  private const DETAILS_SEARCHED = ['Series', 'Earlier title', 'Later title', 'Subjects', 'Genre', 'Other names'];
+  private const DETAILS_SEARCHED = ['Series', 'Part of', 'Earlier title', 'Later title', 'Subjects', 'Genre', 'Other names'];
 
   /**
    * How many values of one detail show before the rest fold.
