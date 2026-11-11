@@ -50,6 +50,18 @@ drush cr
 
 In the `bento_search` index, turn on the processor **Archive records: finding aids and oral histories only** (Processors tab), then reindex. It leaves out the archive records the search never shows, such as Breaux Data, which were most of the index. Oral histories filter by series once `field_series` is in the index as a String.
 
+## Oral history series
+
+`src/OralHistorySeries.php` maps each abstract folder (`/sites/all/files/oralhistory/abstracts/<folder>/`) to the series name the site shows. The folder is what the Catalog and the site share: the Catalog's own series wording is uneven or missing. `scripts/import_oral_histories.php` adds an archive record for every abstract the Catalog links in a mapped folder that the site has no record for (title, PDF, series, and the Catalog's summary, interviewee and interviewer). It never changes existing records. From the site's web folder:
+
+```
+drush php:script modules/custom/palefire_search/scripts/import_oral_histories.php
+drush php:script modules/custom/palefire_search/scripts/import_oral_histories.php -- apply=1
+drush search-api:index bento_search
+```
+
+The first is a dry run. `folder=<name>` limits it to one series. To add a series, add its folder and name to the map first.
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`
