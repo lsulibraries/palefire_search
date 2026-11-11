@@ -43,7 +43,7 @@ final class OralHistorySeries {
     'ourladyofthelake' => 'Our Lady of the Lake, "Under Pressure: A Louisiana Hospital\'s COVID-19 Experience"',
     'perique' => 'Perique Tobacco',
     'political' => 'Political Series',
-    'robertcox' => 'Robert Ray Cox series',
+    'robertcox' => 'Robert Ray Cox Series',
     'suehebert' => 'Sue Hebert Series',
     'university' => 'University History',
     'various' => 'Various Topics',

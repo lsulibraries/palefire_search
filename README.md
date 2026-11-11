@@ -62,6 +62,8 @@ drush search-api:index bento_search
 
 The first is a dry run. `folder=<name>` limits it to one series. To add a series, add its folder and name to the map first.
 
+To rename a series, change its name in the map, then run `scripts/sync_oral_history_series.php` the same way (dry run, then `-- apply=1`, then reindex). It sets each oral history record's Series from its abstract's folder, and fixes records without an abstract whose series is the same name written another way.
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`
