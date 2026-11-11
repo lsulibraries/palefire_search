@@ -120,12 +120,25 @@ class SearchController extends ControllerBase {
     $mode_key = is_string($parameters['mode'] ?? NULL) && isset($modes[$parameters['mode']]) ? $parameters['mode'] : 'all';
     $mode = $modes[$mode_key];
 
+    // year:1860-1865 in the search is the Year published filter: the address
+    // takes it from the search, so its chip and fields show it as if chosen.
+    if ($query !== '' && ($typed = SearchTerms::years($query))) {
+      $parameters['q'] = $typed['query'];
+      unset($parameters['search_api_fulltext_bento'], $parameters['page'], $parameters['from'], $parameters['to']);
+      $parameters += array_filter(['from' => $typed['from'], 'to' => $typed['to']], static fn(?int $year): bool => $year !== NULL);
+      $response = new LocalRedirectResponse(Url::fromRoute('palefire_search.page', [], ['query' => array_filter($parameters, static fn($value): bool => $value !== '' && $value !== [])])->toString());
+      $response->getCacheableMetadata()->addCacheContexts(['url.query_args']);
+      return $response;
+    }
+
     [$chosen, $refines] = $this->selection($parameters, $mode);
     if ($query !== '' && ($moved = $this->moved($mode, $chosen, $refines, $query, $parameters))) {
       return $moved;
     }
     $selected = array_values(array_intersect($mode['sources'], array_unique([...$chosen, ...array_keys($refines)])));
-    $years = array_filter($selected, static fn(string $key): bool => !empty(SearchSources::get($key)['year_filter'])) ? $this->years($parameters) : [];
+    // With nothing chosen, every source is searched, so the years go to those
+    // with a Year published filter.
+    $years = !$selected || array_filter($selected, static fn(string $key): bool => !empty(SearchSources::get($key)['year_filter'])) ? $this->years($parameters) : [];
     $sorts = SearchSources::sorts($selected);
     $sort = is_string($parameters['sort'] ?? NULL) && isset($sorts[$parameters['sort']]) ? $parameters['sort'] : 'relevance';
     $page = is_scalar($parameters['page'] ?? NULL) ? max(0, (int) $parameters['page']) : 0;
@@ -174,8 +187,8 @@ class SearchController extends ControllerBase {
     $build['#answer'] = $page === 0 ? $this->answer($query) : NULL;
     if (!SearchSources::indexableWords($query)) {
       $build['#notice'] = SearchTerms::hasOperators($query)
-        ? $this->t('The site index needs a word of three letters or more to look for, so its results are left out. Outside services still search for “@query”.', ['@query' => $query])
-        : $this->t('The site index only matches words of three letters or more, so its results are left out. Outside services still search for “@query”.', ['@query' => $query]);
+        ? $this->t('The site index needs a word of two letters or more to look for, so its results are left out. Outside services still search for “@query”.', ['@query' => $query])
+        : $this->t('The site index only matches words of two letters or more, so its results are left out. Outside services still search for “@query”.', ['@query' => $query]);
     }
 
     // The results first: they record counts the filters can then reuse.

@@ -60,8 +60,10 @@ class ExternalSearch {
     $terms = match ($source['adapter']) {
       // Journals is Discovery's service, so it reads the same operators.
       'discovery', 'journals' => SearchTerms::forDiscovery($query),
-      // Words and phrases only: the Catalog's feed reads AND and NOT as words.
-      'guides', 'catalog' => SearchTerms::forGuides($query),
+      // The Catalog's feed reads AND and NOT as words, and one field at a time.
+      'catalog' => SearchTerms::forCatalog($query),
+      // Words and phrases only.
+      'guides' => SearchTerms::forGuides($query),
       default => $query,
     };
     if ($terms === '') {
@@ -75,8 +77,9 @@ class ExternalSearch {
       default => $this->guidePages($source, $terms, $page, $limit),
     };
 
-    // Some services can't honor operators, and the page says so.
-    $results['simplified'] = in_array($source['adapter'], ['guides', 'catalog'], TRUE) && SearchTerms::hasOperators($query) ? $terms : NULL;
+    // Some services can't honor operators, fields or word endings, and the
+    // page says what they searched for instead.
+    $results['simplified'] = SearchTerms::lostBy($source['adapter'], $query) ? $terms : NULL;
 
     $words = SearchSources::indexableWords($query);
     $results['items'] = array_map(fn(array $item): array => $this->shown($item, $words), $results['items']);

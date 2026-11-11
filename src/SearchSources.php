@@ -38,6 +38,18 @@ final class SearchSources {
   public const PRIVATE_FIELDS = ['field_internal_note', 'field_interviewee_release'];
 
   /**
+   * The index fields each searchable field means, for author:, title: and
+   * subject:. The index has no author for books or finding aids, so author:
+   * finds oral histories by the people interviewed or interviewing. A field
+   * missing from the index is skipped.
+   */
+  public const INDEX_FIELDS = [
+    'author' => ['field_interviewee', 'field_interviewer', 'field_principal_interviewers', 'field_principal_interviewers_1'],
+    'title' => ['title', 'field_title', 'field_book_title', 'field_course_title', 'field_collection_name'],
+    'subject' => ['field_topics', 'field_manuscript_topic', 'field_search_tags'],
+  ];
+
+  /**
    * Sorts for a source with real dates.
    *
    * Research Guides offers none: its connector only searches full text when
@@ -397,9 +409,22 @@ final class SearchSources {
 
   /**
    * A source's outside address for this search, or NULL.
+   *
+   * The search goes as that site reads it: fields in Discovery's codes or the
+   * Catalog's names. Other sites get it as typed, as before, unless it names
+   * a field, which they'd read as a word: then its words only.
    */
   public static function moreUrl(array $source, string $query): ?string {
-    return isset($source['more_url']) ? str_replace('@q', rawurlencode($query), $source['more_url']) : NULL;
+    if (!isset($source['more_url'])) {
+      return NULL;
+    }
+    $terms = match (TRUE) {
+      in_array($source['adapter'] ?? NULL, ['discovery', 'journals'], TRUE) => SearchTerms::forDiscovery($query),
+      ($source['adapter'] ?? NULL) === 'catalog' => SearchTerms::forCatalog($query),
+      SearchTerms::hasFields($query) => SearchTerms::forGuides($query),
+      default => $query,
+    };
+    return str_replace('@q', rawurlencode($terms === '' ? $query : $terms), $source['more_url']);
   }
 
 }

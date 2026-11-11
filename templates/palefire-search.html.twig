@@ -77,13 +77,36 @@
         <button class="pf-index__submit" type="submit">{{ 'Search'|t }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button>
       </div>
     </form>
-    <nav class="pf-index__modes" aria-label="{{ 'What to search'|t }}" data-no-swup>
-      <ul role="list">
-        {% for link in modes %}
-          <li><a href="{{ link.url }}"{% if link.current %} aria-current="page"{% endif %}>{{ link.label }}</a></li>
-        {% endfor %}
-      </ul>
-    </nav>
+    <div class="pf-index__bar">
+      <nav class="pf-index__modes" aria-label="{{ 'What to search'|t }}" data-no-swup>
+        <ul role="list">
+          {% for link in modes %}
+            <li><a href="{{ link.url }}"{% if link.current %} aria-current="page"{% endif %}>{{ link.label }}</a></li>
+          {% endfor %}
+        </ul>
+      </nav>
+      {# How to write a search, in the glossary's card, as What are these? is.
+         SearchTerms reads all of it. #}
+      <button class="pf-index__about-open pf-index__tips-open" type="button" popovertarget="pf-index-tips" style="anchor-name:--pf-index-tips">{{ 'Search tips'|t }}</button>
+      <div class="pf-term__card pf-index__about pf-index__tips" id="pf-index-tips" popover style="position-anchor:--pf-index-tips">
+        <p class="pf-term__name">{{ 'Search tips'|t }}</p>
+        <dl>
+          <dt><code>"barry allen"</code></dt>
+          <dd>{{ 'These words together, in this order. Library pages and finding aids still find the words anywhere in a record.'|t }}</dd>
+          <dt><code>econom*</code></dt>
+          <dd>{{ 'Words that start with these letters: economics, economy. Three letters or more before the *.'|t }}</dd>
+          <dt><code>cotton AND sugar</code> · <code>cotton OR sugar</code> · <code>cotton NOT sugar</code></dt>
+          <dd>{{ 'Both words, either word, or the first without the second. AND, OR and NOT go in capitals. A minus sign (-sugar) also leaves a word out, and parentheses group words.'|t }}</dd>
+          <dt><code>author:faulkner</code> · <code>title:"light in august"</code> · <code>subject:mississippi</code></dt>
+          <dd>{{ 'Words in one field. The Catalog takes one field to a search. On library pages, author finds oral histories by the person interviewed or interviewing.'|t }}</dd>
+          <dt><code>year:1862</code> · <code>year:1860-1865</code></dt>
+          <dd>{{ 'Published in those years, in the Catalog and Discovery. It fills in the Year published filter.'|t }}</dd>
+          <dt><code>"PS3511 .A86"</code></dt>
+          <dd>{{ 'A call number, in quotes, in the Catalog.'|t }}</dd>
+        </dl>
+        <p>{{ 'Research guides read words only. When a source can’t use part of a search, its results say what it searched for instead.'|t }}</p>
+      </div>
+    </div>
   </header>
 
   <div class="pf-index__main" data-pf-index-main tabindex="-1">

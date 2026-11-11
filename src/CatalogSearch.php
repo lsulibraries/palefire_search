@@ -291,7 +291,9 @@ class CatalogSearch {
     if ($terms === '') {
       return ['total' => 0, 'failed' => FALSE, 'items' => []];
     }
-    $address = rawurlencode($terms) . $this->qualifiers($filters);
+    // The feed reads its address once more: a field's = (TITLE=hamlet) must
+    // arrive encoded, or it ends the search there.
+    $address = str_replace('%3D', '%253D', rawurlencode($terms)) . $this->qualifiers($filters);
 
     $records = $this->records($address);
     if ($records === NULL) {
@@ -849,7 +851,14 @@ class CatalogSearch {
       }
     }
 
-    $answer = $this->service('standard/searchCatalog', 'term1=' . rawurlencode($terms) . '&hitsToDisplay=' . $limit . $limits);
+    // The service names a field apart from the words: TITLE=hamlet is
+    // searchType1=TITLE and term1=hamlet.
+    $field = '';
+    if (preg_match('/^(AUTHOR|TITLE|SUBJECT)=(.+)$/s', $terms, $match)) {
+      $field = '&searchType1=' . $match[1];
+      $terms = $match[2];
+    }
+    $answer = $this->service('standard/searchCatalog', 'term1=' . rawurlencode($terms) . $field . '&hitsToDisplay=' . $limit . $limits);
     if ($answer === NULL) {
       return $failed;
     }

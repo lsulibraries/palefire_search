@@ -47,6 +47,17 @@ class LocalSearch {
   private const MERGE_LIMIT = 2000;
 
   /**
+   * The most indexed words a word ending (econom*) stands for, most used
+   * first, so a short ending can't make the search enormous.
+   */
+  private const PREFIX_WORDS = 40;
+
+  /**
+   * Indexed words by word ending, for this request.
+   */
+  private array $prefixWords = [];
+
+  /**
    * Counts this request already knows, so a section and its filter share one.
    */
   private array $counts = [];
@@ -342,8 +353,12 @@ class LocalSearch {
    */
   private function build(array $source_keys, string $query, array $refines): ?QueryInterface {
     $index = $this->entityTypeManager->getStorage('search_api_index')->load(SearchSources::INDEX);
-    $keys = SearchTerms::searchKeys($query);
-    if (!$index instanceof IndexInterface || !$index->status() || $keys === NULL) {
+    if (!$index instanceof IndexInterface || !$index->status()) {
+      return NULL;
+    }
+    $fulltext = array_values(array_diff($index->getFulltextFields(), SearchSources::PRIVATE_FIELDS));
+    $terms = SearchTerms::forIndex($query, fn(string $prefix): array => $this->wordsStartingWith($index, $prefix, self::PREFIX_WORDS));
+    if ($terms === NULL) {
       return NULL;
     }
 
@@ -351,12 +366,35 @@ class LocalSearch {
     $parse_mode = \Drupal::service('plugin.manager.search_api.parse_mode')->createInstance('terms');
     $parse_mode->setConjunction('AND');
     $search->setParseMode($parse_mode);
-    // The parse mode can't read AND, OR, NOT or groups, so the keys are replaced
-    // with SearchTerms' reading of them.
-    $search->keys($query);
-    $search_keys = &$search->getKeys();
-    $search_keys = $keys;
-    $search->setFulltextFields(array_values(array_diff($index->getFulltextFields(), SearchSources::PRIVATE_FIELDS)));
+    if ($terms['keys'] !== NULL) {
+      // The parse mode can't read AND, OR, NOT or groups, so the keys are
+      // replaced with SearchTerms' reading of them.
+      $search->keys($query);
+      $search_keys = &$search->getKeys();
+      $search_keys = $terms['keys'];
+    }
+    $search->setFulltextFields($fulltext);
+    // author:, title: and subject: as conditions on their index fields: any
+    // of those fields for a wanted term, none of them for an excluded one.
+    foreach ($terms['fields'] as $term) {
+      $fields = array_intersect(SearchSources::INDEX_FIELDS[$term['field']] ?? [], $fulltext);
+      if (!$fields) {
+        // This index has none of that field: nothing can match it.
+        if (!$term['not']) {
+          return NULL;
+        }
+        continue;
+      }
+      $group = $search->createConditionGroup($term['not'] ? 'AND' : 'OR');
+      foreach ($fields as $field) {
+        // A word ending in one field asks fewer words than one anywhere: each
+        // word is a condition on every field.
+        foreach (array_slice($term['words'], 0, 10) as $word) {
+          $group->addCondition($field, $word, $term['not'] ? '<>' : '=');
+        }
+      }
+      $search->addConditionGroup($group);
+    }
     $search->sort('search_api_relevance', QueryInterface::SORT_DESC);
     // Results that tie otherwise come back in a different order each time, so
     // one page repeats rows from another and some are never shown.
@@ -371,6 +409,51 @@ class LocalSearch {
     }
     $search->addConditionGroup($sources);
     return $search;
+  }
+
+  /**
+   * The index's words that start with these letters, most used first.
+   *
+   * The server matches whole words only, and its setting for word beginnings
+   * would change every search. So a word ending (econom*) is read here: the
+   * words come from the server's own word table, as the index stored them
+   * (lower case, and cut to their stems), and are searched for together. If
+   * the table can't be read, the letters are searched as a word.
+   */
+  private function wordsStartingWith(IndexInterface $index, string $prefix, int $limit): array {
+    $prefix = mb_strtolower($prefix);
+    if (isset($this->prefixWords[$prefix])) {
+      return $this->prefixWords[$prefix];
+    }
+    $words = [];
+    try {
+      $info = \Drupal::keyValue('search_api_db.indexes')->get($index->id());
+      $tables = [];
+      foreach ($index->getFulltextFields() as $field) {
+        if (!in_array($field, SearchSources::PRIVATE_FIELDS, TRUE) && is_string($info['field_tables'][$field]['table'] ?? NULL)) {
+          $tables[$info['field_tables'][$field]['table']] = TRUE;
+        }
+      }
+      $database = \Drupal::database();
+      foreach (array_keys($tables) as $table) {
+        if (count($words) >= $limit || !$database->schema()->tableExists($table)) {
+          continue;
+        }
+        $select = $database->select($table, 't');
+        $select->addField('t', 'word');
+        $select->addExpression('COUNT(*)', 'uses');
+        $select->condition('t.word', $database->escapeLike($prefix) . '%', 'LIKE')
+          ->groupBy('t.word')
+          ->orderBy('uses', 'DESC')
+          ->range(0, $limit - count($words));
+        $words = array_merge($words, $select->execute()->fetchCol());
+      }
+    }
+    catch (\Throwable $e) {
+      \Drupal::logger('palefire_search')->error('Word endings could not be read: @message', ['@message' => $e->getMessage()]);
+    }
+    $words = array_values(array_unique(array_map('strval', $words)));
+    return $this->prefixWords[$prefix] = $words ?: [$prefix];
   }
 
   /**
