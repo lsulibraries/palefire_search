@@ -99,7 +99,8 @@
                   {%- endfor -%}
                 </div>
               {% endif %}
-              <table role="table">
+              {# One copy: its headings are for screen readers only. #}
+              <table role="table"{% if copy.items|length < 2 and not copy.items_more %} class="pf-index-row__one"{% endif %}>
                 <caption class="visually-hidden">{{ 'Copies at @library'|t({'@library': copy.library}) }}</caption>
                 <thead role="rowgroup">
                   <tr role="row">
