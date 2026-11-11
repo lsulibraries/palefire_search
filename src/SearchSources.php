@@ -30,7 +30,7 @@ final class SearchSources {
   /**
    * Words shorter than this are not indexed (the server's min_chars).
    */
-  public const MIN_WORD = 3;
+  public const MIN_WORD = 2;
 
   /**
    * Fields kept out of searches: staff-only text a visitor must not match.

@@ -337,7 +337,7 @@ class LocalSearch {
   /**
    * The query, or NULL when no word in the search can be matched.
    *
-   * The server ignores words under three characters, and a query left with no
+   * The server ignores words under two characters, and a query left with no
    * words returns every item in the index. So those never reach the server.
    */
   private function build(array $source_keys, string $query, array $refines): ?QueryInterface {
