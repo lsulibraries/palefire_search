@@ -81,21 +81,26 @@ class DiscoverySearch {
    *   Results per page.
    * @param string $sort
    *   The service's sort name.
+   * @param bool $plain
+   *   Whether the search is plain words and phrases, with no operators or
+   *   fields. Those find all their words, as Discovery's own search box does;
+   *   the rest are read as Boolean, so their operators work.
    *
    * @return array
    *   total, reachable (how many can be paged to), failed, and items.
    */
-  public function search(string $terms, array $filters, int $page, int $limit, string $sort): array {
+  public function search(string $terms, array $filters, int $page, int $limit, string $sort, bool $plain = FALSE): array {
     $this->counts = [];
     $page = min($page, (int) floor((self::MAX_START - 1) / $limit));
+    $mode = $plain ? 'all' : 'bool';
 
-    $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort, $page === 0));
+    $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort, $mode, $page === 0));
 
     // The service only reaches so far past what it has already read for a
     // search. Reading as far as it allows opens the page asked for.
     if (preg_match('/Max start request number is\s*:\s*(\d+)/', (string) ($json['DetailedErrorDescription'] ?? ''), $match)) {
-      $this->fetch($this->address($terms, $filters, intdiv((int) $match[1] - 1, $limit), $limit, $sort));
-      $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort));
+      $this->fetch($this->address($terms, $filters, intdiv((int) $match[1] - 1, $limit), $limit, $sort, $mode));
+      $json = $this->fetch($this->address($terms, $filters, $page, $limit, $sort, $mode));
     }
 
     $total = $json['SearchResult']['Statistics']['TotalHits'] ?? NULL;
@@ -144,17 +149,19 @@ class DiscoverySearch {
    *
    * The proxy keeps only the last of a repeated parameter, so limiters are
    * numbered and all the types go in one facet filter: values of a type widen
-   * the results, and each limiter narrows them. $journal asks for the journal
-   * the search may name (JournalSearch::exactMatch()).
+   * the results, and each limiter narrows them. $mode is the service's search
+   * mode: in "bool", words with no operator between them are one phrase.
+   * $journal asks for the journal the search may name
+   * (JournalSearch::exactMatch()).
    */
-  private function address(string $terms, array $filters, int $page, int $limit, string $sort, bool $journal = FALSE): string {
+  private function address(string $terms, array $filters, int $page, int $limit, string $sort, string $mode, bool $journal = FALSE): string {
     $parameters = [
       // A bare comma would end the search there: it separates a field from
       // its value.
       'query-1' => str_replace(',', '\\,', $terms),
       'sort' => $sort,
       'includefacets' => 'y',
-      'searchmode' => 'bool',
+      'searchmode' => $mode,
       'view' => 'detailed',
       'resultsperpage' => $limit,
       'pagenumber' => $page + 1,

@@ -71,7 +71,7 @@ class ExternalSearch {
     }
 
     $results = match ($source['adapter']) {
-      'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
+      'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance', !SearchTerms::hasOperators($query) && !SearchTerms::hasFields($query)),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
       default => $this->guidePages($source, $terms, $page, $limit),
