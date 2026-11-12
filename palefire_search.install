@@ -1,0 +1,131 @@
+<?php
+
+/**
+ * @file
+ * The Scholarly Repository's records, harvested for the Index.
+ */
+
+use Drupal\Core\Database\Database;
+
+/**
+ * Implements hook_schema().
+ */
+function palefire_search_schema(): array {
+  return [
+    'palefire_search_repository' => [
+      'description' => 'Scholarly Repository records, harvested over OAI-PMH (RepositoryHarvest).',
+      'fields' => [
+        'oai_id' => [
+          'type' => 'varchar',
+          'length' => 191,
+          'not null' => TRUE,
+          'description' => 'The record’s OAI identifier.',
+        ],
+        'url' => [
+          'type' => 'varchar',
+          'length' => 1024,
+          'not null' => TRUE,
+          'default' => '',
+          'description' => 'The record’s page in the repository.',
+        ],
+        'title' => [
+          'type' => 'text',
+          'not null' => FALSE,
+        ],
+        'creators' => [
+          'type' => 'text',
+          'not null' => FALSE,
+          'description' => 'Authors, one per line.',
+        ],
+        'abstract' => [
+          'type' => 'text',
+          'size' => 'medium',
+          'not null' => FALSE,
+          'description' => 'The abstract, as plain text.',
+        ],
+        'subjects' => [
+          'type' => 'text',
+          'not null' => FALSE,
+          'description' => 'Keywords, one per line.',
+        ],
+        'kind' => [
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+          'description' => 'What it is: Article, Dissertation, Thesis and so on.',
+        ],
+        'publication' => [
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+          'description' => 'The repository series it is in, such as LSU Doctoral Dissertations.',
+        ],
+        'date' => [
+          'type' => 'varchar',
+          'length' => 32,
+          'not null' => TRUE,
+          'default' => '',
+          'description' => 'Its date, as the repository gives it (ISO).',
+        ],
+        'year' => [
+          'type' => 'int',
+          'size' => 'small',
+          'not null' => FALSE,
+        ],
+        'harvested' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'default' => 0,
+          'description' => 'When the run that last saw it began, so a full run can drop what it no longer finds.',
+        ],
+      ],
+      'primary key' => ['oai_id'],
+      'indexes' => [
+        'date' => ['date'],
+        'year' => ['year'],
+        'harvested' => ['harvested'],
+      ],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_install().
+ */
+function palefire_search_install(): void {
+  _palefire_search_repository_fulltext();
+}
+
+/**
+ * Adds the full-text indexes the repository search ranks with, on MySQL.
+ *
+ * Drupal's schema has no full-text index, so it's added here. Elsewhere
+ * RepositorySearch matches with LIKE instead.
+ */
+function _palefire_search_repository_fulltext(): void {
+  $connection = Database::getConnection();
+  if ($connection->databaseType() !== 'mysql') {
+    return;
+  }
+  $schema = $connection->schema();
+  if (!$schema->indexExists('palefire_search_repository', 'ft_all')) {
+    $connection->query('ALTER TABLE {palefire_search_repository} ADD FULLTEXT ft_all (title, creators, abstract, subjects)');
+  }
+  if (!$schema->indexExists('palefire_search_repository', 'ft_title')) {
+    $connection->query('ALTER TABLE {palefire_search_repository} ADD FULLTEXT ft_title (title)');
+  }
+}
+
+/**
+ * Adds the table for the Scholarly Repository's harvested records.
+ */
+function palefire_search_update_11001(): string {
+  $schema = Database::getConnection()->schema();
+  if (!$schema->tableExists('palefire_search_repository')) {
+    $schema->createTable('palefire_search_repository', palefire_search_schema()['palefire_search_repository']);
+  }
+  _palefire_search_repository_fulltext();
+  return (string) t('Added the Scholarly Repository table. Fill it with: drush palefire-search:repository-harvest');
+}

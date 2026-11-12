@@ -7,7 +7,13 @@ services:
     arguments: ['@cache.default', '%app.root%']
   palefire_search.external:
     class: Drupal\palefire_search\ExternalSearch
-    arguments: ['@palefire_search.discovery', '@palefire_search.catalog', '@palefire_search.journals', '@palefire_search.guide_search', '@palefire_search.pdf_facts']
+    arguments: ['@palefire_search.discovery', '@palefire_search.catalog', '@palefire_search.journals', '@palefire_search.guide_search', '@palefire_search.pdf_facts', '@palefire_search.repository']
+  palefire_search.repository:
+    class: Drupal\palefire_search\RepositorySearch
+    arguments: ['@database']
+  palefire_search.repository_harvest:
+    class: Drupal\palefire_search\RepositoryHarvest
+    arguments: ['@http_client', '@database', '@state', '@lock.persistent', '@logger.factory']
   palefire_search.catalog:
     class: Drupal\palefire_search\CatalogSearch
     arguments: ['@http_client', '@logger.factory', '@cache.default']

@@ -66,6 +66,16 @@ function palefire_search_theme(): array {
 }
 
 /**
+ * Implements hook_cron().
+ *
+ * Keeps the Scholarly Repository's records current a few pages at a time
+ * (RepositoryHarvest::cron()). The first full harvest is quicker with drush.
+ */
+function palefire_search_cron(): void {
+  \Drupal::service('palefire_search.repository_harvest')->cron();
+}
+
+/**
  * Implements hook_system_breadcrumb_alter().
  *
  * The Index in its Special Collections mode sits under Special Collections, so

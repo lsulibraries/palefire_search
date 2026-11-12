@@ -10,9 +10,37 @@ Combined Search (working name "the Index"): the search page at `/v2/search`, in 
   histories has a Series list under it listing every series, those with no
   match disabled. Old addresses (`refine[]=archive:oral_history`,
   `archive:series:…`) still work: they're read as the Oral histories source.
-- **External sources** (Discovery, Catalog, Journals, Research Guides): each from
-  its own service. Their sections load after the page.
-- **Links only** (Scholarly Repository).
+- **External sources** (Discovery, Catalog, Journals, Research Guides, Scholarly
+  Repository): each from its own service. Their sections load after the page.
+
+## Scholarly Repository
+
+The repository's search turns away requests from this server with a firewall
+challenge, but its OAI-PMH feed (`https://repository.lsu.edu/do/oai/`) answers.
+So `RepositoryHarvest` copies every record (qualified Dublin Core: title,
+authors, abstract, keywords, type, date, series, page address) into the
+`palefire_search_repository` table, and `RepositorySearch` searches it: all
+words required, titles weighted, with MySQL full-text indexes. Rows show the
+part of the abstract where the words were found. The feed has no text from the
+files, so the source's note and its Go to link send people to the repository's
+own search for full-text matches.
+
+The table comes from `drush updb` (`palefire_search_update_11001`). Fill it once
+with drush, which takes about half an hour (82,000 records, 100 a page):
+
+```
+drush palefire-search:repository-harvest
+```
+
+After that, cron reads a few pages a run: what changed, daily, and everything
+monthly, dropping records the repository no longer lists (the feed doesn't
+report deletions). A run saves its place after each page, so an interrupted one
+carries on next time. `--status` says how many records are held, `--full`
+starts a full run now, and `--pages=N` stops after N pages.
+
+Changes, 2026-11-12: the Scholarly Repository was a link only after its search
+began refusing this server. It's a section again in All and Research, from the
+harvested copy, with a Year published filter and date sorting.
 
 Journals (in Research) is the homepage's e-journal search: the titles in the
 Libraries' online holdings, from Discovery's own service and proxy

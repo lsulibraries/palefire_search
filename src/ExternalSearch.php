@@ -23,6 +23,7 @@ class ExternalSearch {
     private readonly JournalSearch $journals,
     private readonly GuideSearch $guideSearch,
     private readonly PdfFacts $pdfFacts,
+    private readonly RepositorySearch $repository,
   ) {}
 
   /**
@@ -63,7 +64,7 @@ class ExternalSearch {
       // The Catalog's feed reads AND and NOT as words, and one field at a time.
       'catalog' => SearchTerms::forCatalog($query),
       // Words and phrases only.
-      'guides' => SearchTerms::forGuides($query),
+      'guides', 'repository' => SearchTerms::forGuides($query),
       default => $query,
     };
     if ($terms === '') {
@@ -74,6 +75,8 @@ class ExternalSearch {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
+      // The repository's records, copied here (RepositoryHarvest).
+      'repository' => $this->repository->search($terms, $filters, $page, $limit, $sort),
       default => $this->guidePages($source, $terms, $page, $limit),
     };
 

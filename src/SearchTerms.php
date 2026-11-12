@@ -223,7 +223,7 @@ final class SearchTerms {
   public static function lostBy(string $adapter, string $query): bool {
     return match ($adapter) {
       'catalog' => self::hasOperators($query) || (self::hasFields($query) && !preg_match('/^[A-Z]+=/', self::forCatalog($query))),
-      'guides' => self::hasOperators($query) || self::hasFields($query) || self::hasPrefixes($query),
+      'guides', 'repository' => self::hasOperators($query) || self::hasFields($query) || self::hasPrefixes($query),
       default => FALSE,
     };
   }

@@ -78,16 +78,16 @@ final class SearchSources {
       'all' => [
         'label' => 'All',
         'layout' => 'sections',
-        'sources' => ['articles', 'catalog', 'databases', 'guides', 'archive', 'oral_histories', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
+        'sources' => ['articles', 'catalog', 'databases', 'guides', 'repository', 'archive', 'oral_histories', 'pages', 'faq', 'etextbooks', 'news', 'gear', 'staff'],
         'upcoming' => ['alma'],
-        'links' => ['repository'],
+        'links' => [],
       ],
       'research' => [
         'label' => 'Research',
         'layout' => 'sections',
-        'sources' => ['catalog', 'articles', 'journals', 'databases', 'etextbooks', 'guides', 'archive', 'oral_histories'],
+        'sources' => ['catalog', 'articles', 'journals', 'databases', 'etextbooks', 'guides', 'repository', 'archive', 'oral_histories'],
         'upcoming' => ['alma'],
-        'links' => ['repository'],
+        'links' => [],
       ],
       'special' => [
         'label' => 'Special Collections',
@@ -205,9 +205,23 @@ final class SearchSources {
         'more_label' => 'See all Special Collections guides',
         'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q&tag=Special+Collections&default_lg=1',
       ],
+      // The repository's records, copied here nightly over OAI-PMH
+      // (RepositoryHarvest), because its search can't be asked from this
+      // server. The copy has no text from the files, so the note and the "Go
+      // to" link send people to the repository's own search for that.
       'repository' => [
-        'label' => 'LSU Scholarship',
-        'kind' => 'link',
+        'label' => 'Scholarly Repository',
+        'about' => 'Theses, dissertations, articles and other work by LSU researchers, searched by title, author, abstract and keywords. To search the full text of each document, use the Scholarly Repository’s own search.',
+        'kind' => 'external',
+        'adapter' => 'repository',
+        // Its full list is on this page: go there, not away.
+        'lists_here' => TRUE,
+        'sorts' => self::DATE_SORTS,
+        // No filters of its own, only the year, which needs these to show.
+        'refine_options' => [],
+        'refine_groups' => [],
+        'year_filter' => TRUE,
+        'via' => 'the Scholarly Repository',
         'more_label' => 'Search the Scholarly Repository',
         'more_url' => 'https://repository.lsu.edu/do/search/?q=@q&start=0&context=8403704',
       ],
