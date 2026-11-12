@@ -93,10 +93,12 @@ final class SearchSources {
         'label' => 'Special Collections',
         'layout' => 'merged',
         'sources' => ['catalog', 'special_guides', 'archive', 'oral_histories'],
-        // Shown above the merged list until a source is chosen: a merged list can't
-        // hold an outside source. list_label names the list under it.
-        'lead' => ['catalog', 'special_guides'],
-        'list_label' => 'Finding aids and oral histories',
+        // Sections above the list until a source is chosen: a merged list can't
+        // hold an outside source, and oral histories are their own kind of
+        // thing. list_label names the list under them, which pages through
+        // what's left: the finding aids.
+        'lead' => ['catalog', 'special_guides', 'oral_histories'],
+        'list_label' => 'PDF Finding Aids',
         // Filters already chosen when a source is, which can still be changed.
         'refine_defaults' => ['catalog' => ['library_special']],
         // With the Catalog's Special Collections filter taken off, and none of

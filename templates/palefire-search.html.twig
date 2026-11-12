@@ -88,7 +88,7 @@
       {# How to write a search, in the glossary's card, its right edge on the
          button's: each example on a line of its own beside what it does.
          SearchTerms reads all of it. #}
-      <button class="pf-index__about-open pf-index__tips-open" type="button" popovertarget="pf-index-tips" style="anchor-name:--pf-index-tips">{{ 'Search tips'|t }}</button>
+      <button class="pf-index__about-open pf-index__tips-open" type="button" popovertarget="pf-index-tips" style="anchor-name:--pf-index-tips"><span class="pf-index__link-icon" aria-hidden="true">{{ source('libraries/fontawesome-pro/svgs/duotone/lightbulb.svg', ignore_missing = true)|raw }}</span><span class="pf-index__link-text">{{ 'Search tips'|t }}</span></button>
       <div class="pf-term__card pf-index__tips" id="pf-index-tips" popover style="position-anchor:--pf-index-tips" aria-labelledby="pf-index-tips-title">
         <div class="pf-index__tips-head">
           <p class="pf-term__name" id="pf-index-tips-title">{{ 'Search tips'|t }}</p>
@@ -143,7 +143,7 @@
             <fieldset class="pf-index__group">
               <legend class="pf-index__group-title">
                 <span>{{ group.title }}</span>
-                {% if group.about %}<button class="pf-index__about-open" type="button" aria-expanded="false" aria-controls="pf-index-about" data-pf-index-about>{{ 'What are these?'|t }}</button>{% endif %}
+                {% if group.about %}<button class="pf-index__about-open" type="button" aria-expanded="false" aria-controls="pf-index-about" data-pf-index-about><span class="pf-index__link-icon" aria-hidden="true">{{ source('libraries/fontawesome-pro/svgs/duotone/info-circle.svg', ignore_missing = true)|raw }}</span><span class="pf-index__link-text">{{ 'What are these?'|t }}</span></button>{% endif %}
               </legend>
               {# What each source searches, opened in the filter itself above its
                  options (index-search.js), so it never covers them. #}

@@ -51,6 +51,11 @@ class SearchController extends ControllerBase {
   private const ROOMY_EXTERNAL_LIMIT = 8;
 
   /**
+   * Extra Catalog rows asked for when its oral histories are left out.
+   */
+  private const HIDDEN_SPARE = 5;
+
+  /**
    * Results per page in a list.
    */
   private const LIST_LIMIT = 20;
@@ -195,7 +200,10 @@ class SearchController extends ControllerBase {
     // A merged list can only merge local sources, so an outside one gets a section.
     $outside = array_filter($selected, static fn(string $key): bool => SearchSources::get($key)['kind'] === 'external');
     if (count($selected) === 1 || ($mode['layout'] === 'merged' && !$outside)) {
-      [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort);
+      // A source this mode leads with has its own section, so it's left out
+      // of the list on every page.
+      $leading = !$selected ? ($mode['lead'] ?? []) : [];
+      [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort, $leading);
       $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
       $build['#total'] = $total;
       if (count($sorts) > 1) {
@@ -203,12 +211,14 @@ class SearchController extends ControllerBase {
         $build['#sorts'] = array_map(fn(string $label): mixed => $this->t($label), $sorts);
       }
       // A source this mode leads with goes above its list, with that source's
-      // own defaults. On the first page only: paging is through the list.
-      $lead = !$selected && $page === 0 ? ($mode['lead'] ?? []) : [];
-      if ($lead) {
-        $build['#sections'] = $this->sections($lead, $mode_key, $query, array_intersect_key($mode['refine_defaults'] ?? [], array_flip($lead)), $years);
+      // own defaults. On the first page only: paging is through the list,
+      // which keeps its name on every page, as it holds only what's left.
+      if ($leading) {
+        if ($page === 0) {
+          $build['#sections'] = $this->sections($leading, $mode_key, $query, array_intersect_key($mode['refine_defaults'] ?? [], array_flip($leading)), $years);
+        }
         $build['#list_title'] = $this->t($mode['list_label']);
-        $build['#list_source'] = array_values(array_diff($mode['sources'], $lead))[0];
+        $build['#list_source'] = array_values(array_diff($mode['sources'], $leading))[0];
       }
     }
     else {
@@ -236,9 +246,18 @@ class SearchController extends ControllerBase {
     $years = !empty($definition['year_filter']) ? $this->years($parameters) : [];
     // More rows when it's one of only a few sources (sections()).
     $limit = ($parameters['rows'] ?? NULL) === 'more' ? self::ROOMY_EXTERNAL_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT);
+    // Oral history records, when their own section is beside this one
+    // (sections()): a few more are asked for, so the section stays full.
+    $hide = $source === 'catalog' && ($parameters['abstracts'] ?? NULL) === 'hide';
     $results = $query === ''
       ? ['total' => 0, 'failed' => FALSE, 'items' => []]
-      : $this->external->search($definition, $query, 0, $limit, 'relevance', ['refine' => $refines[$source] ?? [], ...$years]);
+      : $this->external->search($definition, $query, 0, $hide ? $limit + self::HIDDEN_SPARE : $limit, 'relevance', ['refine' => $refines[$source] ?? [], ...$years]);
+    if ($hide && $results['items']) {
+      // The total stays the Catalog's own, which its Show all list holds. If
+      // every row was one, they stay, so a count never heads an empty list.
+      $kept = array_values(array_filter($results['items'], static fn(array $item): bool => !str_contains((string) ($item['pdf_url'] ?? ''), '/oralhistory/')));
+      $results['items'] = array_slice($kept ?: $results['items'], 0, $limit);
+    }
 
     $more_url = SearchSources::moreUrl($definition, $query);
     $more_label = $definition['more_label'] ?? NULL;
@@ -516,6 +535,11 @@ class SearchController extends ControllerBase {
               'refine' => array_map(static fn(string $option): string => $key . ':' . $option, $refines[$key] ?? []),
               ...(!empty($definition['year_filter']) ? $years : []),
               'rows' => $roomy ? 'more' : '',
+              // An oral history's Catalog record says nothing its own row
+              // doesn't, so beside the Oral histories section it's left out.
+              // Not when that section is narrowed to a series: the others'
+              // interviews would be nowhere.
+              'abstracts' => $key === 'catalog' && in_array('oral_histories', $keys, TRUE) && empty($refines['oral_histories']) ? 'hide' : '',
               // Kept for minutes by browsers and the page cache, so the address
               // carries the asset token, which every cache clear changes: after a
               // deploy and drush cr, no one gets a copy from the old code. The
@@ -551,7 +575,7 @@ class SearchController extends ControllerBase {
    *   The list's render array, its total (NULL if it couldn't be reached), and
    *   whether there may be more than that total.
    */
-  private function fullList(array $mode, array $selected, array $refines, array $years, string $query, int $page, string $sort): array {
+  private function fullList(array $mode, array $selected, array $refines, array $years, string $query, int $page, string $sort, array $leading = []): array {
     $source = count($selected) === 1 ? SearchSources::get($selected[0]) : NULL;
     if ($source && $source['kind'] === 'external') {
       $results = $this->external->search($source, $query, $page, self::LIST_LIMIT, $sort, ['refine' => $refines[$selected[0]] ?? [], 'full' => TRUE, ...$years]);
@@ -564,7 +588,7 @@ class SearchController extends ControllerBase {
       $list['#cache'] = ['max-age' => $brief ? 0 : self::EXTERNAL_MAX_AGE];
       return [$list, $results['total'], !empty($results['capped'])];
     }
-    $keys = $selected ?: array_values(array_filter($mode['sources'], static fn(string $key): bool => SearchSources::get($key)['kind'] === 'local'));
+    $keys = $selected ?: array_values(array_filter(array_diff($mode['sources'], $leading), static fn(string $key): bool => SearchSources::get($key)['kind'] === 'local'));
     $results = $this->local->search($keys, $query, $refines, $page, self::LIST_LIMIT, $sort);
     $label = $source['label'] ?? (string) $this->t('Results');
     $more = $source ? SearchSources::moreUrl($source, $query) : NULL;
