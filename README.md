@@ -117,6 +117,8 @@ drush php:script modules/custom/palefire_search/scripts/create_feedback_webform.
 
 The first is a dry run. `email=` is optional. An existing form is left alone unless `replace=1`. Its hidden fields (`search_terms`, `search_mode`, `result_count`, `sources_shown`, `filters_chosen`, `screen`) and `found` and `looking_for` take their values from the address, so their keys must match the page's.
 
+The theme opens the form in a drawer over the results: it fetches this page and posts the form itself, so the Webform keeps Ajax off (no jQuery). It also has an optional screenshot field (one PNG, JPG or WebP image, up to 5 MB), which is added only when the site has a private file directory. Responses are deleted after 365 days (`purge_days=N` changes that, `purge_days=0` keeps them). Honeypot, if enabled, runs without its time limit, since Yes followed quickly by Send is a real answer.
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`
