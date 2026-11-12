@@ -267,7 +267,7 @@ class SearchController extends ControllerBase {
       $modes = SearchSources::modes();
       $mode_key = is_string($parameters['mode'] ?? NULL) && isset($modes[$parameters['mode']]) ? $parameters['mode'] : 'all';
       $more_url = $results['total'] > $limit ? $this->address($mode_key, $query, [$source], $refines, 'relevance', $years) : NULL;
-      $more_label = 'Show all @total';
+      $more_label = 'Show all @label results (@total)';
     }
 
     $list = $this->listBuild($definition['label'], $results, $more_url, $more_label);
@@ -561,7 +561,7 @@ class SearchController extends ControllerBase {
           'label' => $definition['label'],
           'about' => $definition['about'] ?? NULL,
           'count' => $this->countText($results['total'], !empty($results['capped'])),
-          'list' => $this->listBuild($definition['label'], $results, $more, 'Show all @total'),
+          'list' => $this->listBuild($definition['label'], $results, $more, 'Show all @label results (@total)'),
         ];
       }
     }
@@ -643,7 +643,7 @@ class SearchController extends ControllerBase {
       '#simplified' => $results['simplified'] ?? NULL,
       '#backup' => !empty($results['backup']),
       '#more_url' => $more_url,
-      '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
+      '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@label' => $label, '@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
     $held = array_filter(array_column($results['items'], 'holdings_id'));
     $pdfs = array_filter(array_column($results['items'], 'archive_pdf'));
