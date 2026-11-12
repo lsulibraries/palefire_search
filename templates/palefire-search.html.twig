@@ -216,6 +216,23 @@
 
       <div class="pf-index__results">
         {% if query %}
+          {# The term searched, set large as a wall label over the results.
+             Hidden from screen readers: the results bar under it says the same,
+             and the theme fades that bar's words in once it's held. #}
+          <div class="pf-index__echo" aria-hidden="true">
+            <p class="pf-index__echo-lead">
+              {%- if total is null or list_title -%}
+                {{ 'Results for'|t }}
+              {%- elseif capped -%}
+                {{ '@total+ results for'|t({'@total': total|number_format}) }}
+              {%- elseif total == 1 -%}
+                {{ '1 result for'|t }}
+              {%- else -%}
+                {{ '@total results for'|t({'@total': total|number_format}) }}
+              {%- endif -%}
+            </p>
+            <p class="pf-index__echo-term">{{ query }}</p>
+          </div>
           <div class="pf-index__toolbar">
             <p class="pf-index__total" data-pf-index-count>
               {%- if total is null or list_title -%}
@@ -309,9 +326,16 @@
           </section>
         {% endif %}
 
-        {% if sections is empty and not list %}
-          <p class="pf-index-list__status">{{ 'No results.'|t }}</p>
-        {% endif %}
+        {# Nothing found: shown here when the page knows it, and by the theme's
+           index-flair.js once every late section comes back empty. The script
+           adds searches to try and a piece from the collections. #}
+        <section class="pf-index-empty" data-pf-index-empty aria-labelledby="pf-index-empty-title"{% if sections is not empty or list %} hidden{% endif %}>
+          <p class="pf-index-empty__lead">{{ 'No results for'|t }}</p>
+          <h2 class="pf-index-empty__title" id="pf-index-empty-title">“{{ query }}”</h2>
+          <p class="pf-index-empty__text">{{ 'Check the spelling, try fewer or broader words, or search another tab above.'|t }}</p>
+          <div class="pf-index-empty__try" data-pf-index-try hidden></div>
+          <div class="pf-index-empty__vault" data-pf-index-vault hidden></div>
+        </section>
 
         {% if links %}
           <aside class="pf-index__elsewhere" aria-label="{{ 'Search elsewhere'|t }}">

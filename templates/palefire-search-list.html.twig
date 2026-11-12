@@ -36,7 +36,7 @@
  * - pager: a pager, or NULL.
  */
 #}
-<div class="pf-index-list" data-pf-index-total="{{ total }}" data-pf-index-count="{{ count }}">
+<div class="pf-index-list" data-pf-index-total="{{ total }}" data-pf-index-count="{{ count }}"{% if failed %} data-pf-index-failed{% endif %}>
   {% if simplified %}
     <p class="pf-index-list__status">{{ '@label can’t use every part of this search, so it searched for: @terms'|t({'@label': label, '@terms': simplified}) }}</p>
   {% endif %}
