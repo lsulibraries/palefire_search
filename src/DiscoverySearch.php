@@ -27,6 +27,30 @@ class DiscoverySearch {
   private const LIMITERS = [
     'full_text' => 'FT',
     'peer_reviewed' => 'RV',
+    'in_collection' => 'FT1',
+    'epub' => 'FM30',
+  ];
+
+  /**
+   * The "Language" filters, by the service's language facet values.
+   *
+   * The facet, not the language limiter: the limiter only reads some of the
+   * databases, so it finds a fraction of what the facet counts. Some languages
+   * come under more than one name, and a filter takes them all.
+   */
+  private const LANGUAGES = [
+    'language_english' => ['english', 'eng'],
+    'language_french' => ['french', 'francais'],
+    'language_german' => ['german'],
+    'language_spanish' => ['spanish', 'spanish; castilian'],
+    'language_latin' => ['latin'],
+    'language_italian' => ['italian'],
+    'language_dutch' => ['dutch', 'dutch; flemish', 'dutch/flemish'],
+    'language_portuguese' => ['portuguese'],
+    'language_russian' => ['russian'],
+    'language_chinese' => ['chinese'],
+    'language_japanese' => ['japanese'],
+    'language_arabic' => ['arabic'],
   ];
 
   /**
@@ -59,7 +83,7 @@ class DiscoverySearch {
   ];
 
   /**
-   * Type counts from the latest search, by filter name.
+   * Type and language counts from the latest search, by filter name.
    */
   private array $counts = [];
 
@@ -105,6 +129,11 @@ class DiscoverySearch {
     }
 
     $this->counts = $this->typeCounts($json['SearchResult']['AvailableFacets'] ?? []);
+    // With a language chosen, the service counts the others within it, not
+    // what they'd add, so a 0 would turn off one that widens the results.
+    if (array_intersect_key(self::LANGUAGES, array_flip($filters['refine'] ?? []))) {
+      $this->counts = array_diff_key($this->counts, self::LANGUAGES);
+    }
     return [
       'total' => (int) $total,
       'reachable' => min((int) $total, (int) (floor((self::MAX_START - 1) / $limit) + 1) * $limit),
@@ -131,7 +160,7 @@ class DiscoverySearch {
   }
 
   /**
-   * Type counts from the latest search, or nothing if it failed.
+   * Type and language counts from the latest search, or nothing if it failed.
    *
    * Choosing a type doesn't change these, so each says what it would add.
    */
@@ -175,9 +204,15 @@ class DiscoverySearch {
       $parameters['limiter-' . ($index + 1)] = $limiter;
     }
 
-    $types = array_intersect_key(self::TYPES, array_flip($filters['refine'] ?? []));
-    if ($types) {
-      $parameters['facetfilter'] = '1,' . implode(',', array_map(static fn(string $type): string => 'SourceType:' . $type, $types));
+    // One facet filter: values of one facet widen the results, and each facet
+    // narrows them, so Books and French is books in French.
+    $chosen = array_flip($filters['refine'] ?? []);
+    $values = [
+      ...array_map(static fn(string $type): string => 'SourceType:' . $type, array_values(array_intersect_key(self::TYPES, $chosen))),
+      ...array_map(static fn(string $language): string => 'Language:' . $language, array_merge(...array_values(array_intersect_key(self::LANGUAGES, $chosen)))),
+    ];
+    if ($values) {
+      $parameters['facetfilter'] = '1,' . implode(',', $values);
     }
 
     return Url::fromUri('internal:/api-proxy/eds_api_proxy', [
@@ -187,18 +222,27 @@ class DiscoverySearch {
   }
 
   /**
-   * The service's source type counts, by filter name.
+   * The service's source type and language counts, by filter name. Without a
+   * language facet, the languages have no number rather than a 0 that would
+   * turn them off.
    */
   private function typeCounts(array $facets): array {
     $found = [];
     foreach ($facets as $facet) {
-      if (($facet['Id'] ?? '') === 'SourceType') {
+      $id = $facet['Id'] ?? '';
+      if ($id === 'SourceType' || $id === 'Language') {
         foreach ($facet['AvailableFacetValues'] ?? [] as $value) {
-          $found[$value['Value'] ?? ''] = (int) ($value['Count'] ?? 0);
+          $found[$id][$value['Value'] ?? ''] = (int) ($value['Count'] ?? 0);
         }
       }
     }
-    return array_map(static fn(string $type): int => $found[$type] ?? 0, self::TYPES);
+    $counts = array_map(static fn(string $type): int => $found['SourceType'][$type] ?? 0, self::TYPES);
+    if (isset($found['Language'])) {
+      foreach (self::LANGUAGES as $name => $names) {
+        $counts[$name] = array_sum(array_intersect_key($found['Language'], array_flip($names)));
+      }
+    }
+    return $counts;
   }
 
   /**

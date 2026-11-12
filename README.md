@@ -28,6 +28,17 @@ The service offers near matches too, so the card appears only when the title is
 the search itself, case, punctuation and a leading "The" aside
 (`JournalSearch::sameTitle()`).
 
+Discovery's filters: Limit to (full text, peer reviewed, in the Libraries'
+collection, EPUB e-books) are the service's limiters, and each narrows. Type and
+Language go in one facet filter, so values of one widen and the two together
+narrow. Language uses the facet, not the `LA99` limiter, which reads only some
+databases and found 13 French results where the facet counts 65. A language
+filter takes every name the facet uses for it (`spanish` and `spanish;
+castilian`). Once a language is chosen, the service counts the others within it,
+so the languages show no numbers then. The API profile doesn't search the LSU
+catalog database, so Discovery's own site shows catalog books this list doesn't:
+they're in the Catalog section.
+
 The Catalog uses two public services together. Its results feed chooses and
 orders the rows, because only the feed ranks by relevance. Its web service then
 adds each row's copies and availability, from `/v2/search/holdings`, which loads
