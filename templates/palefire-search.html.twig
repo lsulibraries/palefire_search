@@ -87,6 +87,13 @@
           {% endfor %}
         </ul>
       </nav>
+      {# Feedback, found without scrolling: the feedback drawer as the answers
+         under the results open it, with no answer chosen. This row stays
+         through an in-place search, so index-search.js takes the current
+         search's details from those answers on the way. #}
+      {% if feedback %}
+        <a class="pf-index__about-open pf-index__feedback-open" href="{{ feedback.url }}{{ feedback.context ? '?' ~ feedback.context|url_encode }}" data-pf-index-feedback-answer="open" data-pf-index-feedback-bar data-no-swup><span class="pf-index__link-icon" aria-hidden="true">{{ source('libraries/fontawesome-pro/svgs/duotone/comment-alt-lines.svg', ignore_missing = true)|raw }}</span><span class="pf-index__link-text">{{ 'Feedback'|t }}</span></a>
+      {% endif %}
       {# How to write a search, in the glossary's card, its right edge on the
          button's: each example on a line of its own beside what it does.
          SearchTerms reads all of it. #}

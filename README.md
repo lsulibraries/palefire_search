@@ -108,7 +108,7 @@ To rename a series, change its name in the map, then run `scripts/sync_oral_hist
 
 ## Feedback
 
-Under the results the page asks "Did you find what you needed?". Each answer links to the Webform `combined_search_feedback` (at `/v2/search/feedback`) with the search filled in. The question shows only while that Webform exists and is open. `scripts/create_feedback_webform.php` makes it. From the site's web folder:
+Under the results the page asks "Did you find what you needed?". Each answer links to the Webform `combined_search_feedback` (at `/v2/search/feedback`) with the search filled in. A Feedback link beside Search tips opens the same form from the top of the page, with no answer chosen, before a search too. The question and the link show only while that Webform exists and is open. `scripts/create_feedback_webform.php` makes it. From the site's web folder:
 
 ```
 drush php:script modules/custom/palefire_search/scripts/create_feedback_webform.php

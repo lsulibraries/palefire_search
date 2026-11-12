@@ -191,10 +191,12 @@ class SearchController extends ControllerBase {
     $build['#kept'] = $this->kept($chosen, $refines, $years, $sort);
 
     if ($query === '') {
+      // The Feedback link beside Search tips is there before any search too.
+      $build['#feedback'] = $this->feedback($build, $query, $mode_key);
       return $build;
     }
 
-    $build['#links'] = $this->outsideLinks($mode['links'], $query);
+    $build['#links']= $this->outsideLinks($mode['links'], $query);
     $build['#answer'] = $page === 0 ? $this->answer($query) : NULL;
     if (!SearchSources::indexableWords($query)) {
       $build['#notice'] = SearchTerms::hasOperators($query)
@@ -242,7 +244,8 @@ class SearchController extends ControllerBase {
   /**
    * The feedback question's address and what it says about this search.
    *
-   * Each answer opens the feedback Webform with this search filled in: its
+   * Each answer, and the Feedback link beside Search tips, opens the feedback
+   * Webform with this search filled in: its
    * elements take these names from the address (Webform's prepopulate). Until
    * that Webform exists and is open, the page doesn't ask. Its cache tags bring
    * the question in the moment it opens and take it away when it closes.
