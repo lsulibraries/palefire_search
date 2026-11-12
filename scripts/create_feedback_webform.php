@@ -16,7 +16,9 @@
  *   drush php:script modules/custom/palefire_search/scripts/create_feedback_webform.php -- apply=1 email=group@example.edu
  *
  * A dry run unless apply=1. email= also sends each response to that address,
- * replying to the visitor when they gave theirs. If the form already exists it
+ * replying to the visitor when they gave theirs. Responses and their
+ * screenshots are deleted after 365 days; purge_days=N changes that, and
+ * purge_days=0 keeps them. If the form already exists it
  * is left alone, so edits made in the UI are kept. replace=1 resets its fields
  * and settings to these (submissions are kept).
  *
@@ -40,6 +42,7 @@ foreach ((isset($extra) && is_array($extra)) ? $extra : [] as $arg) {
 $apply = ($args['apply'] ?? '') === '1';
 $replace = ($args['replace'] ?? '') === '1';
 $email = $args['email'] ?? '';
+$purge_days = (int) ($args['purge_days'] ?? 365);
 $prefix = $apply ? '' : '[dry run] ';
 
 $id = 'combined_search_feedback';
@@ -108,6 +111,17 @@ $elements = [
       'visitor' => 'Visitor or community member',
     ],
   ],
+  // Private files only: a screenshot can show someone's own account. Left
+  // out below when the site has no private file directory.
+  'screenshot' => [
+    '#type' => 'webform_image_file',
+    '#title' => 'A screenshot, if it helps',
+    '#description' => 'Optional. One image: PNG, JPG or WebP, up to 5 MB. Please leave out anything personal.',
+    '#file_extensions' => 'png jpg jpeg webp',
+    '#max_filesize' => 5,
+    '#uri_scheme' => 'private',
+    '#multiple' => FALSE,
+  ],
   'email' => [
     '#type' => 'email',
     '#title' => 'Your email, if you’d like a reply',
@@ -137,14 +151,27 @@ foreach (['found', 'looking_for', 'search_terms', 'search_mode', 'result_count',
 $settings = [
   'page' => TRUE,
   'page_submit_path' => $path,
-  'ajax' => TRUE,
+  // The search page's drawer (the theme's index-search.js) fetches this page
+  // and posts the form itself. Webform's Ajax would bring jQuery for nothing.
+  'ajax' => FALSE,
   'form_remote_addr' => FALSE,
   'form_previous_submissions' => FALSE,
   'confirmation_type' => 'inline',
   'confirmation_title' => 'Thank you',
-  'confirmation_message' => '<p>Thank you. Your note goes straight to the people building Combined Search.</p><p><a href="/v2/search">Back to Combined Search</a></p>',
+  // Shown in place of the form, in the search page's drawer as on the form's
+  // own page: no link away from the search.
+  'confirmation_message' => '<p>Thank you. Your note goes straight to the people building Combined Search.</p>',
   'confirmation_back' => FALSE,
+  // Responses, and the screenshots with them, are deleted after this many
+  // days. purge_days=0 keeps them.
+  'purge' => $purge_days > 0 ? 'all' : 'none',
+  'purge_days' => $purge_days > 0 ? $purge_days : NULL,
 ];
+
+if (!\Drupal::service('stream_wrapper_manager')->isValidScheme('private')) {
+  unset($elements['screenshot']);
+  echo "{$prefix}No private file directory on this site: the screenshot field is left out. Set \$settings['file_private_path'] and run again with replace=1 to add it.\n";
+}
 
 echo "{$prefix}" . ($existing ? 'Resetting' : 'Creating') . " $id at $path\n";
 echo "{$prefix}Fields: " . implode(', ', array_keys(array_diff_key($elements, ['actions' => 1, 'privacy' => 1]))) . "\n";
@@ -158,6 +185,7 @@ if ($modules->moduleExists('antibot')) {
   $spam[] = 'antibot';
 }
 echo "{$prefix}Spam protection: " . ($spam ? implode(', ', $spam) : 'none (neither Honeypot nor Antibot is enabled)') . "\n";
+echo "{$prefix}Deleted after: " . ($purge_days > 0 ? "$purge_days days" : 'never') . "\n";
 echo "{$prefix}Email: " . ($email !== '' ? $email : 'none (responses are in the Webform\'s Results tab)') . "\n";
 
 if (!$apply) {
@@ -176,7 +204,8 @@ foreach ($settings as $key => $value) {
 }
 if (in_array('honeypot', $spam, TRUE)) {
   $webform->setThirdPartySetting('honeypot', 'honeypot', TRUE);
-  $webform->setThirdPartySetting('honeypot', 'time_restriction', TRUE);
+  // No time limit: Yes, then Send, a second later, is a real answer.
+  $webform->setThirdPartySetting('honeypot', 'time_restriction', FALSE);
 }
 if (in_array('antibot', $spam, TRUE)) {
   $webform->setThirdPartySetting('antibot', 'antibot', TRUE);
