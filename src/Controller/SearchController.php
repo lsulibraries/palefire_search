@@ -3,6 +3,7 @@
 namespace Drupal\palefire_search\Controller;
 
 use Drupal\Core\Asset\AssetQueryStringInterface;
+use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\PageCache\ResponsePolicy\KillSwitch;
 use Drupal\Core\Pager\PagerManagerInterface;
@@ -84,6 +85,11 @@ class SearchController extends ControllerBase {
    * The filter value that says no to a filter's default.
    */
   private const ANY = 'any';
+
+  /**
+   * The Webform that takes feedback on the page, built in the site's UI.
+   */
+  private const FEEDBACK_FORM = 'combined_search_feedback';
 
   public function __construct(
     private readonly LocalSearch $local,
@@ -229,7 +235,54 @@ class SearchController extends ControllerBase {
     $build['#chips'] = $this->chips($mode_key, $query, $chosen, $refines, $years, $sort);
     $build['#clear_url'] = $this->address($mode_key, $query);
     $build['#selected_count'] = count($chosen) + array_sum(array_map(static fn(array $options): int => count(array_diff($options, [self::ANY])), $refines)) + ($years ? 1 : 0);
+    $build['#feedback'] = $this->feedback($build, $query, $mode_key);
     return $build;
+  }
+
+  /**
+   * The feedback question's address and what it says about this search.
+   *
+   * Each answer opens the feedback Webform with this search filled in: its
+   * elements take these names from the address (Webform's prepopulate). Until
+   * that Webform exists and is open, the page doesn't ask. Its cache tags bring
+   * the question in the moment it opens and take it away when it closes.
+   *
+   * @return array|null
+   *   [url, context], or NULL.
+   */
+  private function feedback(array &$build, string $query, string $mode_key): ?array {
+    if (!$this->entityTypeManager()->hasDefinition('webform')) {
+      return NULL;
+    }
+    $cache = CacheableMetadata::createFromRenderArray($build)
+      ->addCacheTags(['config:webform_list', 'config:webform.webform.' . self::FEEDBACK_FORM]);
+    $webform = $this->entityTypeManager()->getStorage('webform')->load(self::FEEDBACK_FORM);
+    $url = NULL;
+    if ($webform && $webform->isOpen()) {
+      $generated = $webform->toUrl()->toString(TRUE);
+      $cache->merge(CacheableMetadata::createFromObject($generated));
+      $url = $generated->getGeneratedUrl();
+    }
+    $cache->applyTo($build);
+    if (!$url) {
+      return NULL;
+    }
+    $sources = array_column($build['#sections'] ?? [], 'key');
+    if (!empty($build['#list_source'])) {
+      $sources[] = $build['#list_source'];
+    }
+    $filters = array_map(static fn(array $chip): string => (string) $chip['label'], $build['#chips'] ?? []);
+    return [
+      'url' => $url,
+      'context' => array_filter([
+        'search_terms' => $query,
+        'looking_for' => $query,
+        'search_mode' => $mode_key,
+        'result_count' => isset($build['#total']) ? (string) $build['#total'] : '',
+        'sources_shown' => implode(', ', $sources),
+        'filters_chosen' => implode('; ', $filters),
+      ], static fn(string $value): bool => $value !== ''),
+    ];
   }
 
   /**

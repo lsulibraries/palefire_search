@@ -38,6 +38,8 @@
  *   carries its own total and sort, which don't speak for those sections.
  * - list_source: the source whose place in a visitor's order the list takes.
  * - notice: a message about this search.
+ * - feedback: [url, context], the feedback Webform and this search's details
+ *   for its fields, or NULL while that Webform is missing or closed.
  */
 #}
 {% import _self as index %}
@@ -336,6 +338,22 @@
           <div class="pf-index-empty__try" data-pf-index-try hidden></div>
           <div class="pf-index-empty__vault" data-pf-index-vault hidden></div>
         </section>
+
+        {# Feedback on the page: each answer opens the feedback Webform with this
+           search filled in. Under the results, so it's asked once they've been
+           seen, and under No results too. The theme's index-search.js adds what
+           only the browser knows (screen size, an empty page) on the way. #}
+        {% if feedback %}
+          <aside class="pf-index-feedback" aria-labelledby="pf-index-feedback-title" data-pf-index-feedback>
+            <h2 class="pf-index-feedback__title" id="pf-index-feedback-title">{{ 'Did you find what you needed?'|t }}</h2>
+            <ul class="pf-index-feedback__answers" role="list">
+              {% for value, label in {yes: 'Yes'|t, partly: 'Partly'|t, no: 'No'|t} %}
+                <li><a href="{{ feedback.url }}?{{ feedback.context|merge({found: value})|url_encode }}" data-pf-index-feedback-answer="{{ value }}" data-no-swup>{{ label }}</a></li>
+              {% endfor %}
+            </ul>
+            <p class="pf-index-feedback__note">{{ 'Combined Search is new. Tell us what worked and what didn’t.'|t }}</p>
+          </aside>
+        {% endif %}
 
         {% if links %}
           <aside class="pf-index__elsewhere" aria-label="{{ 'Search elsewhere'|t }}">
