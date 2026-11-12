@@ -106,6 +106,17 @@ The first is a dry run. `folder=<name>` limits it to one series. To add a series
 
 To rename a series, change its name in the map, then run `scripts/sync_oral_history_series.php` the same way (dry run, then `-- apply=1`, then reindex). It sets each oral history record's Series from its abstract's folder, and fixes records without an abstract whose series is the same name written another way.
 
+## Feedback
+
+Under the results the page asks "Did you find what you needed?". Each answer links to the Webform `combined_search_feedback` (at `/v2/search/feedback`) with the search filled in. The question shows only while that Webform exists and is open. `scripts/create_feedback_webform.php` makes it. From the site's web folder:
+
+```
+drush php:script modules/custom/palefire_search/scripts/create_feedback_webform.php
+drush php:script modules/custom/palefire_search/scripts/create_feedback_webform.php -- apply=1 email=<group address>
+```
+
+The first is a dry run. `email=` is optional. An existing form is left alone unless `replace=1`. Its hidden fields (`search_terms`, `search_mode`, `result_count`, `sources_shown`, `filters_chosen`, `screen`) and `found` and `looking_for` take their values from the address, so their keys must match the page's.
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`
