@@ -6,6 +6,7 @@
  */
 
 use Drupal\Core\Breadcrumb\Breadcrumb;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Url;
@@ -90,5 +91,18 @@ function palefire_search_system_breadcrumb_alter(Breadcrumb &$breadcrumb, RouteM
   $breadcrumb->addCacheContexts(['url.query_args:mode']);
   if (\Drupal::request()->query->get('mode') === 'special') {
     $breadcrumb->addLink(Link::fromTextAndUrl(t('Special Collections'), Url::fromUserInput('/v2/special')));
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_presave() for webform_submission.
+ *
+ * Combined Search feedback is anonymous for everyone: Webform notes the
+ * signed-in account with each response, so this one is saved without it. Its
+ * IP address is never kept (the form's own setting).
+ */
+function palefire_search_webform_submission_presave(EntityInterface $submission): void {
+  if ($submission->get('webform_id')->target_id === 'combined_search_feedback') {
+    $submission->set('uid', 0);
   }
 }

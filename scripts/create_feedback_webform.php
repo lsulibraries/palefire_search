@@ -67,6 +67,13 @@ if ($existing && !$replace) {
 // answer worth keeping. Vendor names stay out, so the form outlasts the
 // systems behind the search.
 $elements = [
+  // First, so people know they can be candid. True for everyone: no IP
+  // address (form_remote_addr below), and palefire_search.module drops a
+  // signed-in visitor's account from each response.
+  'intro' => [
+    '#type' => 'webform_markup',
+    '#markup' => '<p><strong>Your feedback is anonymous.</strong> We don’t record your name, your account or your IP address, only the search you came from. Short notes and blunt ones are both welcome.</p>',
+  ],
   'found' => [
     '#type' => 'radios',
     '#title' => 'Did you find what you were looking for?',
@@ -129,7 +136,9 @@ $elements = [
   ],
   'privacy' => [
     '#type' => 'webform_markup',
-    '#markup' => '<p>We keep what you write here and the search you came from, to improve Combined Search. Your email is used only to reply to you.</p>',
+    '#markup' => '<p>We keep what you write and the search you came from'
+    . ($purge_days > 0 ? ' for ' . ($purge_days === 365 ? 'a year' : "$purge_days days") : '')
+    . ', only to improve Combined Search. Leave your email only if you’d like a reply: it’s used for nothing else.</p>',
   ],
   // Sent by the search page, never shown. Their keys are the address's.
   'search_terms' => ['#type' => 'hidden', '#title' => 'Search terms'],
@@ -174,7 +183,7 @@ if (!\Drupal::service('stream_wrapper_manager')->isValidScheme('private')) {
 }
 
 echo "{$prefix}" . ($existing ? 'Resetting' : 'Creating') . " $id at $path\n";
-echo "{$prefix}Fields: " . implode(', ', array_keys(array_diff_key($elements, ['actions' => 1, 'privacy' => 1]))) . "\n";
+echo "{$prefix}Fields: " . implode(', ', array_keys(array_diff_key($elements, ['actions' => 1, 'privacy' => 1, 'intro' => 1]))) . "\n";
 
 $modules = \Drupal::moduleHandler();
 $spam = [];

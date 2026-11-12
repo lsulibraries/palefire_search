@@ -119,6 +119,8 @@ The first is a dry run. `email=` is optional. An existing form is left alone unl
 
 The theme opens the form in a drawer over the results: it fetches this page and posts the form itself, so the Webform keeps Ajax off (no jQuery). It also has an optional screenshot field (one PNG, JPG or WebP image, up to 5 MB), which is added only when the site has a private file directory. Responses are deleted after 365 days (`purge_days=N` changes that, `purge_days=0` keeps them). Honeypot, if enabled, runs without its time limit, since Yes followed quickly by Send is a real answer.
 
+Responses are anonymous, and the form says so at the top: no IP address is kept (`form_remote_addr` off), and `palefire_search_webform_submission_presave()` saves each response without the signed-in account Webform would otherwise note. Only an email typed in the form identifies anyone. To show the notice on a form that already exists, run the script again with `replace=1` (responses are kept).
+
 ## Addresses
 
 `/v2/search?q=&mode=all|research|website|special&source=&refine=&page=`
