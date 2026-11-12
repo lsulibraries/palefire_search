@@ -99,10 +99,17 @@ function palefire_search_system_breadcrumb_alter(Breadcrumb &$breadcrumb, RouteM
  *
  * Combined Search feedback is anonymous for everyone: Webform notes the
  * signed-in account with each response, so this one is saved without it. Its
- * IP address is never kept (the form's own setting).
+ * IP address is never kept (the form's own setting). Only whether the visitor
+ * was signed in to the website is kept (signed_in: yes or no), read here
+ * rather than sent by the page, and only when the response is first saved:
+ * a later edit in the Results tab is someone else's session.
  */
 function palefire_search_webform_submission_presave(EntityInterface $submission): void {
-  if ($submission->get('webform_id')->target_id === 'combined_search_feedback') {
-    $submission->set('uid', 0);
+  if ($submission->get('webform_id')->target_id !== 'combined_search_feedback') {
+    return;
   }
+  if ($submission->isNew()) {
+    $submission->setElementData('signed_in', \Drupal::currentUser()->isAuthenticated() ? 'yes' : 'no');
+  }
+  $submission->set('uid', 0);
 }

@@ -69,10 +69,10 @@ if ($existing && !$replace) {
 $elements = [
   // First, so people know they can be candid. True for everyone: no IP
   // address (form_remote_addr below), and palefire_search.module drops a
-  // signed-in visitor's account from each response.
+  // signed-in visitor's account from each response, keeping only yes or no.
   'intro' => [
     '#type' => 'webform_markup',
-    '#markup' => '<p><strong>Your feedback is anonymous.</strong> We don’t record your name, your account or your IP address, only the search you came from. Short notes and blunt ones are both welcome.</p>',
+    '#markup' => '<p><strong>Your feedback is anonymous.</strong> We don’t record your name, your account or your IP address, only the search you came from, your browser and screen size, and whether you’re signed in to this website. Short notes and blunt ones are both welcome.</p>',
   ],
   'found' => [
     '#type' => 'radios',
@@ -147,13 +147,24 @@ $elements = [
   'sources_shown' => ['#type' => 'hidden', '#title' => 'Sources shown'],
   'filters_chosen' => ['#type' => 'hidden', '#title' => 'Filters chosen'],
   'screen' => ['#type' => 'hidden', '#title' => 'Screen size'],
+  // The visitor's setup, sent by the theme's index-search.js
+  // (feedbackDevice()): coarse, so it can't single anyone out.
+  'browser' => ['#type' => 'hidden', '#title' => 'Browser'],
+  'os' => ['#type' => 'hidden', '#title' => 'Operating system'],
+  'viewport' => ['#type' => 'hidden', '#title' => 'Window size'],
+  'display' => ['#type' => 'hidden', '#title' => 'Screen and pixel density'],
+  'settings' => ['#type' => 'hidden', '#title' => 'Display settings'],
+  'page_address' => ['#type' => 'hidden', '#title' => 'Search page address'],
+  // Set by palefire_search.module as the response is saved, never from the
+  // address.
+  'signed_in' => ['#type' => 'hidden', '#title' => 'Signed in to the website'],
   'actions' => [
     '#type' => 'webform_actions',
     '#submit__label' => 'Send feedback',
   ],
 ];
 // Only these take values from the address. The rest start empty.
-foreach (['found', 'looking_for', 'search_terms', 'search_mode', 'result_count', 'sources_shown', 'filters_chosen', 'screen'] as $key) {
+foreach (['found', 'looking_for', 'search_terms', 'search_mode', 'result_count', 'sources_shown', 'filters_chosen', 'screen', 'browser', 'os', 'viewport', 'display', 'settings', 'page_address'] as $key) {
   $elements[$key]['#prepopulate'] = TRUE;
 }
 
