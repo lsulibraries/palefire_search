@@ -164,7 +164,7 @@
        leaves the site points up and out. #}
     {% if more_url %}
       {% set outside = more_url starts with 'http' %}
-      <p class="pf-index-list__more" data-no-swup><a class="pf-index-list__all" href="{{ more_url }}"><span class="pf-index-list__all-words">{{ more_name ?: more_label }}</span>{% if more_name and more_count %}<span class="pf-index-list__all-count"><span class="visually-hidden"> (</span>{{ more_count }}<span class="visually-hidden">)</span></span>{% endif %}<span class="pf-index-list__all-arrow" aria-hidden="true">{{ outside ? '↗' : '→' }}</span>{% if outside %}<span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a></p>
+      <p class="pf-index-list__more" data-no-swup><a class="pf-index-list__all pf-button--secondary" href="{{ more_url }}"><span class="pf-index-list__all-words">{{ more_name ?: more_label }}</span>{% if more_name and more_count %}<span class="pf-index-list__all-count"><span class="visually-hidden"> (</span>{{ more_count }}<span class="visually-hidden">)</span></span>{% endif %}<span class="pf-index-list__all-arrow" aria-hidden="true">{{ outside ? '↗︎' : '→' }}</span>{% if outside %}<span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a></p>
     {% endif %}
     {% if pager %}<div class="pf-index-list__pager" data-no-swup>{{ pager }}</div>{% endif %}
   {% endif %}
