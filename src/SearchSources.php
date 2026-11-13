@@ -188,7 +188,7 @@ final class SearchSources {
         'view' => 'bento_libguides_fulltext',
         'display' => 'guidestext',
         'adapter' => 'guides',
-        'more_label' => 'See all research guides',
+        'more_label' => 'See all Research Guides',
         'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q',
       ],
       // The research guides tagged Special Collections, from the guides site's
@@ -305,7 +305,7 @@ final class SearchSources {
         'kind' => 'local',
         'types' => ['tile'],
         'categories' => [66],
-        'more_label' => 'See all databases',
+        'more_label' => 'See all Databases',
         'more_url' => 'https://guides.lib.lsu.edu/az.php?q=@q',
       ],
       'etextbooks' => [
