@@ -61,6 +61,8 @@ function palefire_search_theme(): array {
         'limited' => NULL,
         'more_url' => NULL,
         'more_label' => NULL,
+        'more_name' => NULL,
+        'more_count' => NULL,
         'pager' => NULL,
       ],
     ],

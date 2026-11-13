@@ -33,6 +33,8 @@
  * - holdings_url: where the holdings_id places load from.
  * - limited: how many can be paged to, on the last page when more were found.
  * - more_url, more_label: a link to go further.
+ * - more_name, more_count: more_label as words and a figure apart, when it
+ *   ends in the total ("Show all Discovery results", "50,699").
  * - pager: a pager, or NULL.
  */
 #}
@@ -157,8 +159,12 @@
     {% if limited %}
       <p class="pf-index-list__status">{{ 'Only the first @count results can be shown here. Narrow the search, or see them all on the service’s own site.'|t({'@count': limited|number_format}) }}</p>
     {% endif %}
+    {# The section's closing row: the words where the eye already is, at the
+       results' left edge, the total and an arrow at the right. One that
+       leaves the site points up and out. #}
     {% if more_url %}
-      <p class="pf-index-list__more" data-no-swup><a class="pf-index-rule__link" href="{{ more_url }}">{{ more_label }}</a></p>
+      {% set outside = more_url starts with 'http' %}
+      <p class="pf-index-list__more" data-no-swup><a class="pf-index-list__all" href="{{ more_url }}"><span class="pf-index-list__all-words">{{ more_name ?: more_label }}</span>{% if more_name and more_count %}<span class="pf-index-list__all-count"><span class="visually-hidden"> (</span>{{ more_count }}<span class="visually-hidden">)</span></span>{% endif %}<span class="pf-index-list__all-arrow" aria-hidden="true">{{ outside ? '↗' : '→' }}</span>{% if outside %}<span class="visually-hidden"> {{ '(another site)'|t }}</span>{% endif %}</a></p>
     {% endif %}
     {% if pager %}<div class="pf-index-list__pager" data-no-swup>{{ pager }}</div>{% endif %}
   {% endif %}

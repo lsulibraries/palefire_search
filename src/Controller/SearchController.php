@@ -701,6 +701,12 @@ class SearchController extends ControllerBase {
       '#more_url' => $more_url,
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@label' => $label, '@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];
+    // A label ending in its total ("Show all @label results (@total)") is set
+    // in the closing row as words and a figure apart.
+    if ($more_url && $more_label && str_ends_with($more_label, ' (@total)')) {
+      $build['#more_name'] = $this->t(substr($more_label, 0, -9), ['@label' => $label]);
+      $build['#more_count'] = number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '');
+    }
     $held = array_filter(array_column($results['items'], 'holdings_id'));
     $pdfs = array_filter(array_column($results['items'], 'archive_pdf'));
     if ($held || $pdfs) {
@@ -744,25 +750,22 @@ class SearchController extends ControllerBase {
    */
   private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query): array {
     $options = [];
-    $about = [];
     foreach ($mode['sources'] as $key) {
       $definition = SearchSources::get($key);
-      if (isset($definition['about'])) {
-        $about[] = ['label' => $definition['label'], 'text' => $definition['about']];
-      }
       $count = $definition['kind'] === 'local' ? $this->local->count([$key], $query) : NULL;
       // Ticked only if chosen. A record type limits results to its source without
       // ticking it, or the form would send that back as a choice of its own.
       $checked = in_array($key, $chosen, TRUE);
-      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked];
+      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked, 'about' => $definition['about'] ?? NULL];
     }
     // Not searched yet, so never counted or chosen: selection() only keeps sources.
     foreach ($mode['upcoming'] ?? [] as $key) {
       $definition = SearchSources::get($key);
-      $about[] = ['label' => $definition['label'], 'text' => $definition['about']];
-      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => NULL, 'checked' => FALSE, 'disabled' => TRUE];
+      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => NULL, 'checked' => FALSE, 'disabled' => TRUE, 'about' => $definition['about'] ?? NULL];
     }
-    $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options, 'about' => $about]];
+    // about: some source says what it searches, so the filter offers What
+    // are these? to show each one's line under its name.
+    $groups = [['title' => $this->t('Source'), 'name' => 'source[]', 'options' => $options, 'about' => (bool) array_filter(array_column($options, 'about'))]];
 
     // A source's own filter shows once that source is chosen, or always where
     // the mode leads with it. Each option is a query, so not all at once.
