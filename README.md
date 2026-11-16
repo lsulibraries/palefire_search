@@ -104,6 +104,8 @@ drush search-api:index bento_search
 
 The first is a dry run. `folder=<name>` limits it to one series. To add a series, add its folder and name to the map first.
 
+A series with no words lists every interview in it: `/v2/search?mode=special&source[]=oral_histories&refine[]=oral_histories:series:<name>`. The results heading names the series in place of the words, and the filters show every series with its total. No outside links, answer or notice, since those need words. `LocalSearch::browsesSeries()` decides it; `seriesCounts('oral_histories', '')` gives each series' total, which the theme's Oral History page (/v2/oralhistory, Browse by series) lists with these links. Any other search without words still shows the prompt.
+
 To rename a series, change its name in the map, then run `scripts/sync_oral_history_series.php` the same way (dry run, then `-- apply=1`, then reindex). It sets each oral history record's Series from its abstract's folder, and fixes records without an abstract whose series is the same name written another way.
 
 ## Feedback

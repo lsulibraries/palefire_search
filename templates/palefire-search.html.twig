@@ -10,6 +10,8 @@
  *
  * Variables:
  * - query, mode: the current search.
+ * - browse: the series a search with no words lists (oral_histories:series:
+ *   <name> alone), shown where the words would be, or NULL.
  * - action: the forms' address.
  * - modes: [label, url, current], the tabs.
  * - kept: [name, value] for each chosen filter and the sort, sent again with
@@ -123,7 +125,7 @@
   </header>
 
   <div class="pf-index__main" data-pf-index-main tabindex="-1">
-  {% if not query %}
+  {% if not query and not browse %}
     <p class="pf-index__prompt">{{ 'Enter a word or two to begin.'|t }}</p>
   {% else %}
     {% if notice %}
@@ -224,7 +226,7 @@
       </dialog>
 
       <div class="pf-index__results">
-        {% if query %}
+        {% if query or browse %}
           {# The term searched, set large as a wall label over the results.
              Hidden from screen readers: the results bar under it says the same,
              and the theme fades that bar's words in once it's held. #}
@@ -240,7 +242,7 @@
                 {{ '@total results for'|t({'@total': total|number_format}) }}
               {%- endif -%}
             </p>
-            <p class="pf-index__echo-term">{{ query }}</p>
+            <p class="pf-index__echo-term">{{ query ?: browse }}</p>
           </div>
           <div class="pf-index__toolbar">
             <p class="pf-index__total" data-pf-index-count>
@@ -252,7 +254,7 @@
                 {{ '1 result for'|t }}
               {%- else -%}
                 {{ '@total results for'|t({'@total': total|number_format}) }}
-              {%- endif %} <span class="pf-index__term">“{{ query }}”</span></p>
+              {%- endif %} <span class="pf-index__term">“{{ query ?: browse }}”</span></p>
             {% if chips %}
               <div class="pf-index__chips" data-no-swup>
                 <span class="visually-hidden" id="pf-index-chips">{{ 'Filters chosen'|t }}</span>
@@ -340,7 +342,7 @@
            adds searches to try and a piece from the collections. #}
         <section class="pf-index-empty" data-pf-index-empty aria-labelledby="pf-index-empty-title"{% if sections is not empty or list %} hidden{% endif %}>
           <p class="pf-index-empty__lead">{{ 'No results for'|t }}</p>
-          <h2 class="pf-index-empty__title" id="pf-index-empty-title">“{{ query }}”</h2>
+          <h2 class="pf-index-empty__title" id="pf-index-empty-title">“{{ query ?: browse }}”</h2>
           <p class="pf-index-empty__text">{{ 'Check the spelling, try fewer or broader words, or search another tab above.'|t }}</p>
           <div class="pf-index-empty__try" data-pf-index-try hidden></div>
           <div class="pf-index-empty__vault" data-pf-index-vault hidden></div>

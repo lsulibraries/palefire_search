@@ -48,6 +48,12 @@ class LocalSearch {
   private const MERGE_LIMIT = 2000;
 
   /**
+   * How many records a series count reads with no words (seriesCounts()):
+   * every oral history, not only the best matches.
+   */
+  private const BROWSE_LIMIT = 20000;
+
+  /**
    * The most indexed words a word ending (econom*) stands for, most used
    * first, so a short ending can't make the search enormous.
    */
@@ -89,7 +95,7 @@ class LocalSearch {
     if ($this->listsBooks($source_keys)) {
       return $this->searchBooks($source_keys, $query, $refines, $page, $limit, $sort);
     }
-    $search = $this->build($source_keys, $query, $refines);
+    $search = $this->build($source_keys, $query, $refines, self::browsesSeries($source_keys, $query, $refines));
     if (!$search) {
       return ['total' => 0, 'items' => []];
     }
@@ -137,9 +143,30 @@ class LocalSearch {
   }
 
   /**
+   * Whether a search browses a series: no words, and a series chosen in one
+   * of its sources (oral_histories:series:<name>). Then every record of that
+   * series is listed, as the series links on /v2/oralhistory ask.
+   */
+  public static function browsesSeries(array $source_keys, string $query, array $refines): bool {
+    if (trim($query) !== '') {
+      return FALSE;
+    }
+    foreach ($source_keys as $key) {
+      foreach ($refines[$key] ?? [] as $option) {
+        if (str_starts_with((string) $option, SearchSources::SERIES)) {
+          return TRUE;
+        }
+      }
+    }
+    return FALSE;
+  }
+
+  /**
    * Every series of a source, A to Z, with how many of its records match the
-   * search: 0 where none do. The series are OralHistorySeries' and any other a
-   * record of the source has. Empty where the source has no series.
+   * search: 0 where none do. With no words, how many records each series has
+   * (browsing a series, browsesSeries()). The series are OralHistorySeries'
+   * and any other a record of the source has. Empty where the source has no
+   * series.
    */
   public function seriesCounts(string $source_key, string $query): array {
     $definition = SearchSources::get($source_key);
@@ -166,10 +193,11 @@ class LocalSearch {
     }
 
     // The matching records' IDs only, then their series from the field's table.
-    $search = $this->build([$source_key], $query, []);
+    $browse = trim($query) === '';
+    $search = $this->build([$source_key], $query, [], $browse);
     $ids = [];
     if ($search) {
-      $search->range(0, self::MERGE_LIMIT);
+      $search->range(0, $browse ? self::BROWSE_LIMIT : self::MERGE_LIMIT);
       foreach (array_keys($search->execute()->getResultItems()) as $id) {
         if (preg_match('#^entity:node/(\d+):#', $id, $m)) {
           $ids[] = (int) $m[1];
@@ -205,7 +233,7 @@ class LocalSearch {
     if ($this->listsBooks($source_keys)) {
       return $this->searchBooks($source_keys, $query, $refines, 0, 0)['total'];
     }
-    $search = $this->build($source_keys, $query, $refines);
+    $search = $this->build($source_keys, $query, $refines, self::browsesSeries($source_keys, $query, $refines));
     if (!$search) {
       return 0;
     }
@@ -233,7 +261,7 @@ class LocalSearch {
    * matches are read first for the total and the pages to come out right.
    */
   private function searchBooks(array $source_keys, string $query, array $refines, int $page, int $limit, string $sort = 'relevance'): array {
-    $search = $this->build($source_keys, $query, $refines);
+    $search = $this->build($source_keys, $query, $refines, self::browsesSeries($source_keys, $query, $refines));
     if (!$search) {
       return ['total' => 0, 'items' => []];
     }
@@ -436,7 +464,7 @@ class LocalSearch {
    * The server ignores words under two characters, and a query left with no
    * words returns every item in the index. So those never reach the server.
    */
-  private function build(array $source_keys, string $query, array $refines): ?QueryInterface {
+  private function build(array $source_keys, string $query, array $refines, bool $browse = FALSE): ?QueryInterface {
     $index = $this->entityTypeManager->getStorage('search_api_index')->load(SearchSources::INDEX);
     if (!$index instanceof IndexInterface || !$index->status()) {
       return NULL;
@@ -444,7 +472,12 @@ class LocalSearch {
     $fulltext = array_values(array_diff($index->getFulltextFields(), SearchSources::PRIVATE_FIELDS));
     $terms = SearchTerms::forIndex($query, fn(string $prefix): array => $this->wordsStartingWith($index, $prefix, self::PREFIX_WORDS));
     if ($terms === NULL) {
-      return NULL;
+      // No words: nothing, unless the caller browses (every record of the
+      // sources, narrowed by their filters alone).
+      if (!$browse || trim($query) !== '') {
+        return NULL;
+      }
+      $terms = ['keys' => NULL, 'fields' => []];
     }
 
     $search = $index->query();

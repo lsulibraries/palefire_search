@@ -190,15 +190,21 @@ class SearchController extends ControllerBase {
     ];
     $build['#kept'] = $this->kept($chosen, $refines, $years, $sort);
 
-    if ($query === '') {
+    // A series with no words (oral_histories:series:<name> alone, the series
+    // list on /v2/oralhistory): every interview in it, with the filters, and
+    // no outside links, answer or notice, which need words.
+    $browse = count($selected) === 1 && LocalSearch::browsesSeries($selected, $query, $refines);
+    $build['#browse'] = $browse ? $this->browseLabel($refines[$selected[0]] ?? []) : NULL;
+
+    if ($query === '' && !$browse) {
       // The Feedback link beside Search tips is there before any search too.
       $build['#feedback'] = $this->feedback($build, $query, $mode_key);
       return $build;
     }
 
-    $build['#links']= $this->outsideLinks($mode['links'], $query);
-    $build['#answer'] = $page === 0 ? $this->answer($query) : NULL;
-    if (!SearchSources::indexableWords($query)) {
+    $build['#links'] = $browse ? [] : $this->outsideLinks($mode['links'], $query);
+    $build['#answer'] = $page === 0 && !$browse ? $this->answer($query) : NULL;
+    if (!$browse && !SearchSources::indexableWords($query)) {
       $build['#notice'] = SearchTerms::hasOperators($query)
         ? $this->t('The site index needs a word of two letters or more to look for, so its results are left out. Outside services still search for “@query”.', ['@query' => $query])
         : $this->t('The site index only matches words of two letters or more, so its results are left out. Outside services still search for “@query”.', ['@query' => $query]);
@@ -924,6 +930,21 @@ class SearchController extends ControllerBase {
       ];
     }
     return $chips;
+  }
+
+  /**
+   * The series a wordless search browses, for the results' heading.
+   *
+   * @param string[] $options
+   *   The browsed source's refine options.
+   */
+  private function browseLabel(array $options): ?string {
+    foreach ($options as $option) {
+      if (str_starts_with((string) $option, SearchSources::SERIES)) {
+        return substr((string) $option, strlen(SearchSources::SERIES));
+      }
+    }
+    return NULL;
   }
 
   /**
