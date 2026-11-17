@@ -35,6 +35,7 @@ function palefire_search_theme(): array {
         'list_title' => NULL,
         'list_source' => NULL,
         'via' => NULL,
+        'about' => NULL,
         'notice' => NULL,
         // The series a search with no words lists (SearchController::page()).
         'browse' => NULL,

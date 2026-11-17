@@ -30,6 +30,7 @@
  * - sort, sorts: the current sort and those on offer (value => label).
  * - links: [label, url], searches elsewhere.
  * - via: the service behind a chosen source: [label, url, also: [label, url]].
+ * - about: a chosen source's line on what it holds, as its section shows.
  *   A section can have its own.
  * - sections: [key, label, about, via, count, list or late_url and full_url].
  *   count is how many it found, as words ("20 results"); empty on a late one.
@@ -327,6 +328,7 @@
             {% else %}
               <h2 class="visually-hidden" id="pf-index-results">{{ 'Results'|t }}</h2>
             {% endif %}
+            {% if about and not list_title %}<p class="pf-index-section__about pf-index__list-about">{{ about }}</p>{% endif %}
             {% if via %}{{ index.via(via) }}{% endif %}{{ list }}
           </section>
         {% endif %}

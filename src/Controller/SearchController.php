@@ -221,6 +221,8 @@ class SearchController extends ControllerBase {
       $leading = !$selected ? ($mode['lead'] ?? []) : [];
       [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort, $leading);
       $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
+      // A chosen source's line on what it holds, as its section has.
+      $build['#about'] = count($selected) === 1 ? (SearchSources::get($selected[0])['about'] ?? NULL) : NULL;
       $build['#total'] = $total;
       if ($outside && count($selected) === 1) {
         $listed = ['key' => $selected[0], 'total' => $total, 'capped' => (bool) $build['#capped']];
