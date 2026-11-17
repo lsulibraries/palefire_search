@@ -521,7 +521,9 @@ class LocalSearch {
     $sources = $search->createConditionGroup('OR');
     foreach ($source_keys as $key) {
       $definition = SearchSources::get($key);
-      if (($definition['kind'] ?? '') === 'local') {
+      // An outside source can keep the site's own copy as its stand-in
+      // (local_backup): asked by name, that copy is searched here too.
+      if (($definition['kind'] ?? '') === 'local' || !empty($definition['local_backup'])) {
         $sources->addConditionGroup($this->sourceConditions($search, $definition, $refines[$key] ?? []));
       }
     }

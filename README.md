@@ -2,7 +2,7 @@
 
 Combined Search (working name "the Index"): the search page at `/v2/search`, in the Palefire theme.
 
-- **Local sources** (Pages, Questions & Answers, Databases, Gear, News, Staff,
+- **Local sources** (Pages, Questions & Answers, Gear, News, Staff,
   E-Textbooks, PDF Finding Aids, Oral histories): direct Search API queries on
   the `bento_search` index, matching all words. PDF Finding Aids searches
   finding aids and Oral histories the oral history abstracts, each an archive
@@ -10,8 +10,27 @@ Combined Search (working name "the Index"): the search page at `/v2/search`, in 
   histories has a Series list under it listing every series, those with no
   match disabled. Old addresses (`refine[]=archive:oral_history`,
   `archive:series:…`) still work: they're read as the Oral histories source.
-- **External sources** (Discovery, Catalog, Journals, Research Guides, Scholarly
-  Repository): each from its own service. Their sections load after the page.
+- **External sources** (Discovery, Catalog, Journals, Databases, Research
+  Guides, Scholarly Repository): each from its own service. Their sections load
+  after the page. Research Guides and Databases list in full on this page
+  (`lists_here`): a section's closing row filters to that source, and the
+  heading's Go to link leads to the guides site.
+
+## Databases
+
+`DatabaseSearch` reads the A-Z Databases list's own search
+(`https://guides.lib.lsu.edu/process/az/dbsearch`, site 5512, no key), the
+address the list's page fills its results from. It matches each database's
+subjects as well as its name and description, so "nutrition" finds the 18
+databases under Nutrition & Food Sciences, where the site's Database tiles
+found 2: their search tags hold one subject each, if any. The address returns
+every match at once whatever its page settings say, so the answer is kept ten
+minutes and paged here. It finds nothing for a quoted phrase, so phrases are
+sent as their words and the page says so. If it can't be read, the Database
+tiles (Tiles in category 66) answer instead (`local_backup`), with a note
+that they know fewer subjects. The address is written for that page and could
+change.
+
 
 ## Scholarly Repository
 

@@ -704,6 +704,7 @@ class SearchController extends ControllerBase {
       '#failed' => $results['failed'] ?? FALSE,
       '#simplified' => $results['simplified'] ?? NULL,
       '#backup' => !empty($results['backup']),
+      '#backup_note' => $results['backup_note'] ?? NULL,
       '#more_url' => $more_url,
       '#more_label' => $more_url && $more_label ? $this->t($more_label, ['@label' => $label, '@total' => number_format((int) $results['total']) . (!empty($results['capped']) ? '+' : '')]) : NULL,
     ];

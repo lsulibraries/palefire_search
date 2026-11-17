@@ -224,6 +224,8 @@ final class SearchTerms {
     return match ($adapter) {
       'catalog' => self::hasOperators($query) || (self::hasFields($query) && !preg_match('/^[A-Z]+=/', self::forCatalog($query))),
       'guides', 'repository' => self::hasOperators($query) || self::hasFields($query) || self::hasPrefixes($query),
+      // The A-Z list finds nothing for a quoted phrase, so it gets the words.
+      'databases' => self::hasOperators($query) || self::hasFields($query) || self::hasPrefixes($query) || str_contains($query, '"'),
       default => FALSE,
     };
   }

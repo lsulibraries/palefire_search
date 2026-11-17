@@ -188,6 +188,10 @@ final class SearchSources {
         'view' => 'bento_libguides_fulltext',
         'display' => 'guidestext',
         'adapter' => 'guides',
+        // Its full list is on this page, filtered to it, as the other
+        // sections' are; the heading's link goes to the guides site.
+        'lists_here' => TRUE,
+        'via' => 'the Research Guides site',
         'more_label' => 'See all Research Guides',
         'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q',
       ],
@@ -299,12 +303,21 @@ final class SearchSources {
         'about' => 'The Libraries’ next system for finding and requesting what they hold. It isn’t searched here yet.',
         'kind' => 'upcoming',
       ],
+      // The A-Z Databases list's own search (DatabaseSearch), which matches
+      // each database's subjects as well as its name and description. The
+      // site's Database tiles (types, categories) stand in when it can't be
+      // read: local_backup names this source, so LocalSearch takes it.
       'databases' => [
         'label' => 'Databases',
         'about' => 'Collections the Libraries subscribe to, for searching one subject or kind of source in depth.',
-        'kind' => 'local',
+        'kind' => 'external',
+        'adapter' => 'databases',
+        'local_backup' => 'databases',
         'types' => ['tile'],
         'categories' => [66],
+        // Its full list is on this page, as Research Guides'.
+        'lists_here' => TRUE,
+        'via' => 'the A–Z Databases list',
         'more_label' => 'See all Databases',
         'more_url' => 'https://guides.lib.lsu.edu/az.php?q=@q',
       ],

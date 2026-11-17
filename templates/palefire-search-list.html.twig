@@ -30,6 +30,7 @@
  * - failed: the source couldn't be reached. Not the same as no results.
  * - simplified: what was searched instead, when the source can't use operators.
  * - backup: the source's usual search is down and a stand-in answered.
+ * - backup_note: what that stand-in is, when it isn't the Catalog's.
  * - holdings_url: where the holdings_id places load from.
  * - limited: how many can be paged to, on the last page when more were found.
  * - more_url, more_label: a link to go further.
@@ -52,7 +53,7 @@
     </p>
   {% else %}
     {% if backup %}
-      <p class="pf-index-list__status">{{ 'The usual @label search isn’t answering, so these are its newest matches, not its closest.'|t({'@label': label}) }}</p>
+      <p class="pf-index-list__status">{% if backup_note %}{{ backup_note|t }}{% else %}{{ 'The usual @label search isn’t answering, so these are its newest matches, not its closest.'|t({'@label': label}) }}{% endif %}</p>
     {% endif %}
     {% if journal %}
       {% include '@palefire_search/palefire-search-journal.html.twig' with {journal: journal} only %}

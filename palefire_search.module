@@ -59,6 +59,7 @@ function palefire_search_theme(): array {
         'failed' => FALSE,
         'simplified' => NULL,
         'backup' => FALSE,
+        'backup_note' => NULL,
         'holdings_url' => NULL,
         'limited' => NULL,
         'more_url' => NULL,

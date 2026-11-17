@@ -12,7 +12,9 @@ use Drupal\views\Views;
  * Catalog has one for its feed, and Journals one for the titles and years
  * Discovery's service holds. A tag's guides, such as Special Collections
  * Guides, come from the guides site's own search. Research
- * Guides runs its View for the data and ignores the markup. The connector
+ * Guides runs its View for the data and ignores the markup. Databases reads
+ * the A-Z Databases list, with the site's own Database tiles as a stand-in.
+ * The connector
  * modules (eds, libguides) keep the credentials and the calls.
  */
 class ExternalSearch {
@@ -24,6 +26,8 @@ class ExternalSearch {
     private readonly GuideSearch $guideSearch,
     private readonly PdfFacts $pdfFacts,
     private readonly RepositorySearch $repository,
+    private readonly DatabaseSearch $databases,
+    private readonly LocalSearch $local,
   ) {}
 
   /**
@@ -65,13 +69,21 @@ class ExternalSearch {
       'catalog' => SearchTerms::forCatalog($query),
       // Words and phrases only.
       'guides', 'repository' => SearchTerms::forGuides($query),
+      // The A-Z list finds nothing for a quoted phrase: its words instead.
+      'databases' => trim(preg_replace('/\s+/u', ' ', str_replace('"', ' ', SearchTerms::forGuides($query))) ?? ''),
       default => $query,
     };
     if ($terms === '') {
       return ['total' => 0, 'failed' => FALSE, 'items' => []];
     }
 
-    $results = match ($source['adapter']) {
+    if ($source['adapter'] === 'databases') {
+      $results = $this->databases->search($terms, $page, $limit);
+      if ($results['failed'] && !empty($source['local_backup'])) {
+        return $this->databaseTiles($source, $query, $page, $limit);
+      }
+    }
+    $results ??= match ($source['adapter']) {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
@@ -144,6 +156,21 @@ class ExternalSearch {
       'catalog' => $this->catalog->counts(),
       default => [],
     };
+  }
+
+  /**
+   * When the A-Z list can't be read: the site's own Database tiles, which
+   * match a database's name, descriptions and search tags but not all of the
+   * list's subjects. The rows come from the site's index, already marked.
+   */
+  private function databaseTiles(array $source, string $query, int $page, int $limit): array {
+    $results = $this->local->search([$source['local_backup']], $query, [], $page, $limit);
+    return $results + [
+      'failed' => FALSE,
+      'backup' => TRUE,
+      'backup_note' => 'The A–Z Databases list isn’t answering, so these come from the Libraries’ website, which knows fewer subjects for each database.',
+      'simplified' => NULL,
+    ];
   }
 
   /**
