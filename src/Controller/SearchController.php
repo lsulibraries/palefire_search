@@ -213,6 +213,8 @@ class SearchController extends ControllerBase {
     // The results first: they record counts the filters can then reuse.
     // A merged list can only merge local sources, so an outside one gets a section.
     $outside = array_filter($selected, static fn(string $key): bool => SearchSources::get($key)['kind'] === 'external');
+    // A chosen outside source's total, for its count in the Source filter.
+    $listed = NULL;
     if (count($selected) === 1 || ($mode['layout'] === 'merged' && !$outside)) {
       // A source this mode leads with has its own section, so it's left out
       // of the list on every page.
@@ -220,6 +222,9 @@ class SearchController extends ControllerBase {
       [$build['#list'], $total, $build['#capped']] = $this->fullList($mode, $selected, $refines, $years, $query, $page, $sort, $leading);
       $build['#via'] = count($selected) === 1 ? $this->via(SearchSources::get($selected[0]), $query) : NULL;
       $build['#total'] = $total;
+      if ($outside && count($selected) === 1) {
+        $listed = ['key' => $selected[0], 'total' => $total, 'capped' => (bool) $build['#capped']];
+      }
       if (count($sorts) > 1) {
         $build['#sort'] = $sort;
         $build['#sorts'] = array_map(fn(string $label): mixed => $this->t($label), $sorts);
@@ -239,7 +244,7 @@ class SearchController extends ControllerBase {
       $build['#sections'] = $this->sections($selected ?: $mode['sources'], $mode_key, $query, $refines, $years, TRUE);
     }
 
-    $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $years, $query);
+    $build['#filters'] = $this->filters($mode, $selected, $chosen, $refines, $years, $query, $listed);
     $build['#chips'] = $this->chips($mode_key, $query, $chosen, $refines, $years, $sort);
     $build['#clear_url'] = $this->address($mode_key, $query);
     $build['#selected_count'] = count($chosen) + array_sum(array_map(static fn(array $options): int => count(array_diff($options, [self::ANY])), $refines)) + ($years ? 1 : 0);
@@ -753,17 +758,25 @@ class SearchController extends ControllerBase {
    * Each option counts on its own, so a count says what choosing it would
    * add. Options with nothing to add are disabled, unless they're chosen and
    * need a way back.
-   * Outside services have no count, since one would mean calling them.
+   * Outside services have no count, since one would mean calling them, except
+   * one that's chosen on its own: its list has just found its total ($listed:
+   * key, total, capped). In sections, the page reads each one's from its
+   * heading once it arrives (index-search.js).
    */
-  private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query): array {
+  private function filters(array $mode, array $selected, array $chosen, array $refines, array $years, string $query, ?array $listed = NULL): array {
     $options = [];
     foreach ($mode['sources'] as $key) {
       $definition = SearchSources::get($key);
       $count = $definition['kind'] === 'local' ? $this->local->count([$key], $query) : NULL;
+      $more = FALSE;
+      if ($listed && $listed['key'] === $key && $listed['total'] !== NULL) {
+        $count = (int) $listed['total'];
+        $more = $listed['capped'];
+      }
       // Ticked only if chosen. A record type limits results to its source without
       // ticking it, or the form would send that back as a choice of its own.
       $checked = in_array($key, $chosen, TRUE);
-      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'checked' => $checked, 'disabled' => $count === 0 && !$checked, 'about' => $definition['about'] ?? NULL];
+      $options[] = ['label' => $definition['label'], 'value' => $key, 'count' => $count, 'count_more' => $more, 'checked' => $checked, 'disabled' => $count === 0 && !$checked, 'about' => $definition['about'] ?? NULL];
     }
     // Not searched yet, so never counted or chosen: selection() only keeps sources.
     foreach ($mode['upcoming'] ?? [] as $key) {

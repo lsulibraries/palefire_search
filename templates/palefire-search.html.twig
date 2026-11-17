@@ -16,7 +16,7 @@
  * - modes: [label, url, current], the tabs.
  * - kept: [name, value] for each chosen filter and the sort, sent again with
  *   a new search.
- * - filters: [title, name, single, about, options: [label, value, count, checked]].
+ * - filters: [title, name, single, about, options: [label, value, count, count_more, checked]]. count_more: count is a floor (300+).
  *   The Source group also has all: [label, checked], its All sources row.
  *   single: one choice, as round buttons. about: [label, text], what each source
  *   is, opened from the group's title. count is
@@ -186,7 +186,7 @@
                 <label class="pf-index__option">
                   <input type="{{ group.single ? 'radio' : 'checkbox' }}" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}{% if option.disabled %} disabled{% endif %}{% if about_id %} aria-describedby="{{ about_id }}"{% endif %}>
                   <span class="pf-index__option-label">{{ option.label }}</span>
-                  {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}</span>{% endif %}
+                  {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}{{ option.count_more ? '+' }}</span>{% endif %}
                 </label>
                 {% if about_id %}<p class="pf-index__option-about" id="{{ about_id }}">{{ option.about }}</p>{% endif %}
                 {# A narrower choice of this source, set in under it. Its name says
