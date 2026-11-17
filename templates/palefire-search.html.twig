@@ -154,20 +154,8 @@
             <fieldset class="pf-index__group">
               <legend class="pf-index__group-title">
                 <span>{{ group.title }}</span>
-                {% if group.about %}<button class="pf-index__about-open" type="button" aria-expanded="false" aria-controls="pf-index-about" data-pf-index-about><span class="pf-index__link-icon" aria-hidden="true">{{ source('libraries/fontawesome-pro/svgs/duotone/info-circle.svg', ignore_missing = true)|raw }}</span><span class="pf-index__link-text">{{ 'What are these?'|t }}</span></button>{% endif %}
+                {% if group.about %}<button class="pf-index__about-open" type="button" aria-pressed="false" data-pf-index-about><span class="pf-index__link-icon" aria-hidden="true">{{ source('libraries/fontawesome-pro/svgs/duotone/info-circle.svg', ignore_missing = true)|raw }}</span><span class="pf-index__link-text">{{ 'What are these?'|t }}</span></button>{% endif %}
               </legend>
-              {# What each source searches, opened in the filter itself above its
-                 options (index-search.js), so it never covers them. #}
-              {% if group.about %}
-                <div class="pf-index__about" id="pf-index-about" hidden>
-                  <dl>
-                    {% for entry in group.about %}
-                      <dt>{{ entry.label }}</dt>
-                      <dd>{{ entry.text }}</dd>
-                    {% endfor %}
-                  </dl>
-                </div>
-              {% endif %}
               {% if group.years is defined %}
                 <div class="pf-index__years">
                   <div>
@@ -190,11 +178,17 @@
                 </label>
               {% endif %}
               {% for option in group.options %}
+                {# What the source searches: its checkbox's description for screen
+                   readers always, and shown under its name once What are these?
+                   is pressed (index-search.js). Outside the label, so the
+                   label stays the source's name. #}
+                {% set about_id = option.about ? 'pf-index-about-' ~ option.value|clean_class %}
                 <label class="pf-index__option">
-                  <input type="{{ group.single ? 'radio' : 'checkbox' }}" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}{% if option.disabled %} disabled{% endif %}>
+                  <input type="{{ group.single ? 'radio' : 'checkbox' }}" name="{{ group.name }}" value="{{ option.value }}"{% if option.checked %} checked{% endif %}{% if option.disabled %} disabled{% endif %}{% if about_id %} aria-describedby="{{ about_id }}"{% endif %}>
                   <span class="pf-index__option-label">{{ option.label }}</span>
                   {% if option.count is not null %}<span class="pf-index__count">{{ option.count|number_format }}</span>{% endif %}
                 </label>
+                {% if about_id %}<p class="pf-index__option-about" id="{{ about_id }}">{{ option.about }}</p>{% endif %}
                 {# A narrower choice of this source, set in under it. Its name says
                    which source it narrows, for anyone not seeing the indent. #}
                 {% for sub in option.sub.options ?? [] %}
@@ -260,7 +254,7 @@
                 <span class="visually-hidden" id="pf-index-chips">{{ 'Filters chosen'|t }}</span>
                 <ul role="list" aria-labelledby="pf-index-chips">
                   {% for chip in chips %}
-                    <li><a class="pf-index__chip" href="{{ chip.url }}"><span class="visually-hidden">{{ 'Remove filter:'|t }} </span>{{ chip.label }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></a></li>
+                    <li><a class="pf-index__chip" href="{{ chip.url }}" title="{{ chip.label }}"><span class="visually-hidden">{{ 'Remove filter:'|t }} </span><span class="pf-index__chip-label">{{ chip.label }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg></a></li>
                   {% endfor %}
                 </ul>
                 <a class="pf-index__clear" href="{{ clear_url }}">{{ 'Clear all'|t }}</a>
