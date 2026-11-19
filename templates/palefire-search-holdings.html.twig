@@ -17,7 +17,9 @@
  */
 #}
 {% macro why(entry) %}{{ entry.reason ?: 'Ask at the library'|t }}{% if entry.due %}, {{ 'due @date'|t({'@date': entry.due}) }}{% endif %}{% endmacro %}
-{% macro out(url, label, about) %}<a class="pf-button--secondary" href="{{ url }}">{{ label }}{% if about %}<span class="visually-hidden">: {{ about }}</span>{% endif %}<span class="visually-hidden"> {{ '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>{% endmacro %}
+{# new_tab: for a step that signs in on another site, such as placing a hold,
+   whose redirects would leave Back far from these results. #}
+{% macro out(url, label, about, new_tab) %}<a class="pf-button--secondary" href="{{ url }}"{% if new_tab %} target="_blank" rel="noopener"{% endif %}>{{ label }}{% if about %}<span class="visually-hidden">: {{ about }}</span>{% endif %}<span class="visually-hidden"> {{ new_tab ? '(another site, opens in a new tab)'|t : '(another site)'|t }}</span><svg class="pf-index-row__out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>{% endmacro %}
 {# A record's detail: a Catalog search for it where that finds more like it.
    A long text shows four lines until Read more (index-search.js). #}
 {% macro detail(item, search) %}
@@ -86,7 +88,7 @@
                 </div>
                 <div class="pf-index-row__copy-actions">
                   {%- if copy.map_url %}{{ holdings.out(copy.map_url, 'Find in the Library'|t) }}{% endif -%}
-                  {%- if copy.hold_url %}{{ holdings.out(copy.hold_url, 'Place hold'|t) }}{% endif -%}
+                  {%- if copy.hold_url %}{{ holdings.out(copy.hold_url, 'Place hold'|t, NULL, TRUE) }}{% endif -%}
                   {%- if copy.request_url %}{{ holdings.out(copy.request_url, 'Request to view'|t) }}{% endif -%}
                 </div>
               </div>

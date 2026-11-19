@@ -373,6 +373,11 @@ class SearchController extends ControllerBase {
     $build = ['#theme' => 'palefire_search_holdings', '#records' => $records];
     $response = new Response((string) $this->renderer->renderInIsolation($build));
     if ($holdings === NULL || in_array(NULL, $records_for, TRUE)) {
+      // Some of the Catalog's answers didn't arrive in time, as happens when a
+      // page of oral histories asks for twenty records at once. The page asks
+      // again for the rows still empty: the records already found are kept, so
+      // the second answer is quicker.
+      $response->headers->set('X-Palefire-Holdings', 'partial');
       $this->applyExternalCaching($response, TRUE);
       return $response;
     }
