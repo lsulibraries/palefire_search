@@ -151,7 +151,7 @@ class SearchController extends ControllerBase {
     // with a Year published filter.
     $years = !$selected || array_filter($selected, static fn(string $key): bool => !empty(SearchSources::get($key)['year_filter'])) ? $this->years($parameters) : [];
     $sorts = SearchSources::sorts($selected);
-    $sort = is_string($parameters['sort'] ?? NULL) && isset($sorts[$parameters['sort']]) ? $parameters['sort'] : 'relevance';
+    $sort = is_string($parameters['sort'] ?? NULL) && isset($sorts[$parameters['sort']]) ? $parameters['sort'] : SearchSources::defaultSort($selected);
     $page = is_scalar($parameters['page'] ?? NULL) ? max(0, (int) $parameters['page']) : 0;
 
     $build = [
@@ -188,7 +188,7 @@ class SearchController extends ControllerBase {
         'tags' => ['search_api_list:' . SearchSources::INDEX],
       ],
     ];
-    $build['#kept'] = $this->kept($chosen, $refines, $years, $sort);
+    $build['#kept'] = $this->kept($chosen, $refines, $years, $sort === SearchSources::defaultSort($selected) ? '' : $sort);
 
     // A series with no words (oral_histories:series:<name> alone, the series
     // list on /v2/oralhistory): every interview in it, with the filters, and
@@ -387,8 +387,8 @@ class SearchController extends ControllerBase {
   }
 
   /**
-   * The chosen filters and sort as form fields, the same values address()
-   * writes, so a new search from the search box keeps them. Not the page: a
+   * The chosen filters and sort ('' for the default) as form fields, the
+   * same values address() writes, so a new search from the search box keeps them. Not the page: a
    * new search starts at its first.
    *
    * @return array
@@ -407,7 +407,7 @@ class SearchController extends ControllerBase {
     foreach ($years as $name => $year) {
       $fields[] = ['name' => $name, 'value' => (string) $year];
     }
-    if ($sort !== 'relevance') {
+    if ($sort !== '') {
       $fields[] = ['name' => 'sort', 'value' => $sort];
     }
     return $fields;
@@ -505,7 +505,7 @@ class SearchController extends ControllerBase {
         $kept[$key] = $options;
       }
     }
-    $sort = is_string($parameters['sort'] ?? NULL) ? $parameters['sort'] : 'relevance';
+    $sort = is_string($parameters['sort'] ?? NULL) ? $parameters['sort'] : '';
     $response = new LocalRedirectResponse($this->address($unless['mode'], $query, $sources, $kept, $sort, $this->years($parameters)));
     $response->getCacheableMetadata()->addCacheContexts(['url.query_args']);
     return $response;
@@ -586,7 +586,8 @@ class SearchController extends ControllerBase {
         $count++;
         continue;
       }
-      $found[$key] = $this->local->search([$key], $query, $refines, 0, $roomy ? self::ROOMY_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT));
+      // In the source's default order: News and Notes newest first.
+      $found[$key] = $this->local->search([$key], $query, $refines, 0, $roomy ? self::ROOMY_LIMIT : ($definition['section_limit'] ?? self::SECTION_LIMIT), SearchSources::defaultSort([$key]));
       if ($found[$key]['total'] > 0) {
         $count++;
       }
@@ -1001,9 +1002,13 @@ class SearchController extends ControllerBase {
   }
 
   /**
-   * An address on this page. Empty values stay out of it.
+   * An address on this page. Empty values stay out of it, and so does the
+   * sort when it's the default for its sources ('' asks for the default).
    */
-  private function address(string $mode, string $query, array $sources = [], array $refines = [], string $sort = 'relevance', array $years = []): string {
+  private function address(string $mode, string $query, array $sources = [], array $refines = [], string $sort = '', array $years = []): string {
+    if ($sort === SearchSources::defaultSort(array_values(array_unique([...$sources, ...array_keys($refines)])))) {
+      $sort = '';
+    }
     $refine = [];
     foreach ($refines as $key => $options) {
       foreach ($options as $option) {
@@ -1015,7 +1020,7 @@ class SearchController extends ControllerBase {
       'mode' => $mode === 'all' ? '' : $mode,
       'source' => $sources,
       'refine' => $refine,
-      'sort' => $sort === 'relevance' ? '' : $sort,
+      'sort' => $sort,
       ...$years,
     ], static fn($value): bool => $value !== '' && $value !== []);
     return Url::fromRoute('palefire_search.page', [], ['query' => $parameters])->toString();

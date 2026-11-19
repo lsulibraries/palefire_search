@@ -407,7 +407,9 @@ final class SearchSources {
         'images' => TRUE,
         'kind' => 'local',
         'types' => ['article'],
-        'sorts' => self::DATE_SORTS,
+        // Newest first by default (the first sort on offer, sorts()): news is
+        // read by date, and Relevance put years-old posts ahead of this week's.
+        'sorts' => ['newest' => 'Newest first', 'relevance' => 'Relevance', 'oldest' => 'Oldest first'],
         'sort_field' => 'field_article_date',
         'refine_field' => 'field_article_category',
         'refine_label' => 'Category',
@@ -470,10 +472,18 @@ final class SearchSources {
 
   /**
    * The sorts on offer: only when one source is chosen, because a mixed list
-   * has items with no date to sort by.
+   * has items with no date to sort by. The first is the default.
    */
   public static function sorts(array $selected): array {
     return count($selected) === 1 ? (self::get($selected[0])['sorts'] ?? []) : [];
+  }
+
+  /**
+   * The sort a search gets when none is asked for: the first on offer, else
+   * Relevance. An address leaves it out (SearchController::address()).
+   */
+  public static function defaultSort(array $selected): string {
+    return array_key_first(self::sorts($selected)) ?? 'relevance';
   }
 
   /**
