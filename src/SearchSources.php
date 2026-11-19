@@ -209,18 +209,18 @@ final class SearchSources {
         'more_label' => 'See all Special Collections guides',
         'more_url' => 'https://guides.lib.lsu.edu/srch.php?q=@q&tag=Special+Collections&default_lg=1',
       ],
-      // The repository's records, copied here nightly over OAI-PMH
-      // (RepositoryHarvest), because its search can't be asked from this
-      // server. The copy has no text from the files, so the note and the "Go
-      // to" link send people to the repository's own search for that.
+      // The repository's own search, which reads each document's full text,
+      // with the records copied here nightly over OAI-PMH (RepositoryHarvest)
+      // adding abstracts, and answering when that search can't be read.
       'repository' => [
         'label' => 'Scholarly Repository',
-        'about' => 'Theses, dissertations, articles and other work by LSU researchers, searched by title, author, abstract and keywords. To search the full text of each document, use the Scholarly Repository’s own search.',
+        'about' => 'Theses, dissertations, articles and other work by LSU researchers, searched through the full text of each document.',
         'kind' => 'external',
         'adapter' => 'repository',
         // Its full list is on this page: go there, not away.
         'lists_here' => TRUE,
-        'sorts' => self::DATE_SORTS,
+        // Its search sorts by relevance or newest only.
+        'sorts' => ['relevance' => 'Relevance', 'newest' => 'Newest first'],
         // No filters of its own, only the year, which needs these to show.
         'refine_options' => [],
         'refine_groups' => [],

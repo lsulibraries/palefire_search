@@ -34,17 +34,26 @@ change.
 
 ## Scholarly Repository
 
-The repository's search turns away requests from this server with a firewall
-challenge, but its OAI-PMH feed (`https://repository.lsu.edu/do/oai/`) answers.
-So `RepositoryHarvest` copies every record (qualified Dublin Core: title,
-authors, abstract, keywords, type, date, series, page address) into the
-`palefire_search_repository` table, and `RepositorySearch` searches it: all
-words required, titles weighted, with MySQL full-text indexes. Rows show the
-part of the abstract where the words were found. The feed has no text from the
-files, so the source's note and its Go to link send people to the repository's
-own search for full-text matches.
+The repository's own search lets this server through its firewall, and it
+reads each document's full text. `RepositorySearch` asks its JSON address
+(`https://repository.lsu.edu/do/search/results/json`, no key), which answers 25
+results at a time from a `start`, sorted by relevance or newest
+(`sort=date_desc`), with years as `start_date` and `end_date` (month/day/year).
+Each answer is kept for ten minutes. It has no abstracts, so each row takes its
+abstract and kind from the copy below, matched by address, and gets an Open
+online link when the answer has a download.
 
-The table comes from `drush updb` (`palefire_search_update_11001`). Fill it once
+`RepositoryHarvest` copies every record over the OAI-PMH feed
+(`https://repository.lsu.edu/do/oai/`; qualified Dublin Core: title, authors,
+abstract, keywords, type, date, series, page address) into the
+`palefire_search_repository` table. When the live search can't be read (a 403
+means the firewall stopped letting this server through), the copy answers
+instead, with a note: all words required, titles weighted, with MySQL full-text
+indexes, and no full text. The live search can't sort oldest first, so the
+source offers relevance and newest only.
+
+The table comes from `drush updb` (`palefire_search_update_11001`, and
+`11002` indexes its addresses). Fill it once
 with drush, which takes about half an hour (82,000 records, 100 a page):
 
 ```
@@ -60,6 +69,10 @@ starts a full run now, and `--pages=N` stops after N pages.
 Changes, 2026-11-12: the Scholarly Repository was a link only after its search
 began refusing this server. It's a section again in All and Research, from the
 harvested copy, with a Year published filter and date sorting.
+
+Changes, 2026-11-19: the repository lets this server through again, so its own
+search answers, full text included, and the copy adds abstracts and stands in
+when it fails. Oldest first is gone: the repository's search can't do it.
 
 Journals (in Research) is the homepage's e-journal search: the titles in the
 Libraries' online holdings, from Discovery's own service and proxy

@@ -87,7 +87,8 @@ class ExternalSearch {
       'discovery' => $this->discovery->search($terms, $filters, $page, $limit, $source['sort_values'][$sort] ?? 'relevance'),
       'catalog' => $this->catalog->search($terms, $filters, $page, $limit),
       'journals' => $this->journals->search($terms, $filters, $page, $limit),
-      // The repository's records, copied here (RepositoryHarvest).
+      // The repository's own search, with its copied records (RepositoryHarvest)
+      // adding abstracts and standing in.
       'repository' => $this->repository->search($terms, $filters, $page, $limit, $sort),
       default => $this->guidePages($source, $terms, $page, $limit),
     };

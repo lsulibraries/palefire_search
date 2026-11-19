@@ -86,6 +86,8 @@ function palefire_search_schema(): array {
         'date' => ['date'],
         'year' => ['year'],
         'harvested' => ['harvested'],
+        // The repository's search gives addresses; their rows are looked up.
+        'url' => [['url', 191]],
       ],
     ],
   ];
@@ -128,4 +130,17 @@ function palefire_search_update_11001(): string {
   }
   _palefire_search_repository_fulltext();
   return (string) t('Added the Scholarly Repository table. Fill it with: drush palefire-search:repository-harvest');
+}
+
+/**
+ * Indexes the repository table's addresses, which its live search's rows are
+ * looked up by.
+ */
+function palefire_search_update_11002(): string {
+  $schema = Database::getConnection()->schema();
+  $table = palefire_search_schema()['palefire_search_repository'];
+  if ($schema->tableExists('palefire_search_repository') && !$schema->indexExists('palefire_search_repository', 'url')) {
+    $schema->addIndex('palefire_search_repository', 'url', $table['indexes']['url'], $table);
+  }
+  return (string) t('Indexed the Scholarly Repository table by address.');
 }

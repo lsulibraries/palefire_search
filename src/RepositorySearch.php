@@ -2,24 +2,53 @@
 
 namespace Drupal\palefire_search;
 
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Query\SelectInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\GuzzleException;
 
 /**
- * Searches the Scholarly Repository's records that RepositoryHarvest keeps.
+ * Searches the Scholarly Repository.
  *
- * Titles, authors, abstracts and keywords are searched, all words required,
- * titles counting most. The text of the files isn't here: the source's note
- * and its link send people to the repository's own search for that.
+ * The repository's own search answers this server (its firewall lets it
+ * through), and it reads the full text of each document. It decides what
+ * matches and in what order; the records RepositoryHarvest keeps add each
+ * row's abstract and kind, which its answer leaves out. It answers 25 at a
+ * time from a given start, so a page may take two answers, each kept for ten
+ * minutes. It sorts by relevance or newest only.
  *
- * On MySQL it uses the table's full-text indexes, which skip words under three
- * letters and a few very common ones; those are left out of the search rather
- * than finding nothing. On another database each word is matched with LIKE.
+ * When it can't be read, or for oldest first, the kept records are searched
+ * instead: titles, authors, abstracts and keywords, all words required, titles
+ * counting most. On MySQL that uses the table's full-text indexes, which skip
+ * words under three letters and a few very common ones; those are left out of
+ * the search rather than finding nothing. On another database each word is
+ * matched with LIKE.
  */
 class RepositorySearch {
 
   use StringTranslationTrait;
+
+  /**
+   * The search's address, the whole repository's context, and how many
+   * results each answer holds.
+   */
+  private const SEARCH = 'https://repository.lsu.edu/do/search/results/json';
+  private const CONTEXT = 8403704;
+  private const BLOCK = 25;
+
+  /**
+   * How long an answer is kept, in seconds, and how long to wait for one.
+   */
+  private const KEEP = 600;
+  private const TIMEOUT = 8;
+
+  /**
+   * Its answer's download formats that are the document itself, online.
+   */
+  private const ONLINE = ['pdf', 'native', 'picture', 'external'];
 
   /**
    * MySQL's (InnoDB's) default stopwords: not indexed, so never required.
@@ -45,6 +74,9 @@ class RepositorySearch {
 
   public function __construct(
     private readonly Connection $database,
+    private readonly ClientInterface $client,
+    private readonly LoggerChannelFactoryInterface $loggerFactory,
+    private readonly CacheBackendInterface $cache,
   ) {}
 
   /**
@@ -62,10 +94,189 @@ class RepositorySearch {
    *   relevance, newest or oldest.
    *
    * @return array
-   *   total, failed (nothing harvested yet), items: [title, url, summary,
-   *   meta].
+   *   total, failed, items: [title, url, summary, meta, full_text_url]. backup
+   *   and backup_note when the kept records answered for the repository.
    */
   public function search(string $terms, array $filters, int $page, int $limit, string $sort = 'relevance'): array {
+    $words = array_values(array_unique(array_map('mb_strtolower', SearchSources::indexableWordsIn($terms))));
+    if (!$words) {
+      return ['total' => 0, 'failed' => FALSE, 'items' => []];
+    }
+    $limit = max(1, $limit);
+    if ($sort !== 'oldest') {
+      $results = $this->live($terms, $filters, $page, $limit, $sort, $words);
+      if ($results !== NULL) {
+        return $results;
+      }
+      $kept = $this->kept($terms, $filters, $page, $limit, $sort);
+      return $kept['failed'] ? $kept : $kept + [
+        'backup' => TRUE,
+        'backup_note' => 'The Scholarly Repository’s search isn’t answering, so these come from a copy of its records, which knows their titles, authors, abstracts and keywords but not their full text.',
+      ];
+    }
+    return $this->kept($terms, $filters, $page, $limit, $sort);
+  }
+
+  /**
+   * A page from the repository's own search, or NULL if it couldn't be read.
+   */
+  private function live(string $terms, array $filters, int $page, int $limit, string $sort, array $words): ?array {
+    $first = $page * $limit;
+    $from = intdiv($first, self::BLOCK) * self::BLOCK;
+    $docs = [];
+    $total = 0;
+    for ($start = $from; $start < $first + $limit; $start += self::BLOCK) {
+      $block = $this->block($terms, $filters, $start, $sort);
+      if ($block === NULL) {
+        return NULL;
+      }
+      $total = $block['total'];
+      array_push($docs, ...$block['docs']);
+      if (count($block['docs']) < self::BLOCK) {
+        break;
+      }
+    }
+    $docs = array_slice($docs, $first - $from, $limit);
+
+    $kept = $this->keptRows(array_map(static fn(array $doc): string => self::https((string) ($doc['url'] ?? '')), $docs));
+    $items = [];
+    foreach ($docs as $doc) {
+      $item = $this->liveItem($doc, $kept[self::https((string) ($doc['url'] ?? ''))] ?? NULL, $words);
+      if ($item) {
+        $items[] = $item;
+      }
+    }
+    return ['total' => $total, 'failed' => FALSE, 'items' => $items];
+  }
+
+  /**
+   * One answer, kept for KEEP seconds: total and docs. NULL on a failure.
+   */
+  private function block(string $terms, array $filters, int $start, string $sort): ?array {
+    $query = [
+      'q' => $terms,
+      'start' => $start,
+      'context' => self::CONTEXT,
+      'format' => 'json',
+    ];
+    if ($sort === 'newest') {
+      $query['sort'] = 'date_desc';
+    }
+    // It reads dates as month/day/year.
+    if (isset($filters['from'])) {
+      $query['start_date'] = '01/01/' . (int) $filters['from'];
+    }
+    if (isset($filters['to'])) {
+      $query['end_date'] = '12/31/' . (int) $filters['to'];
+    }
+    $key = 'palefire_search:repository:' . hash('sha256', serialize($query));
+    if ($kept = $this->cache->get($key)) {
+      return $kept->data;
+    }
+
+    try {
+      $response = $this->client->request('GET', self::SEARCH, [
+        'query' => $query,
+        'connect_timeout' => 5,
+        'timeout' => self::TIMEOUT,
+        'http_errors' => FALSE,
+        'headers' => ['User-Agent' => 'LSU Libraries search', 'Accept' => 'application/json'],
+      ]);
+    }
+    catch (GuzzleException $e) {
+      $this->loggerFactory->get('palefire_search')->error('Scholarly Repository search failed: @message', ['@message' => $e->getMessage()]);
+      return NULL;
+    }
+    $answer = $response->getStatusCode() === 200 ? json_decode((string) $response->getBody(), TRUE) : NULL;
+    if (!is_array($answer) || !isset($answer['num_found']) || !is_array($answer['docs'] ?? NULL)) {
+      // A 403 here is its firewall's challenge: this server is no longer let
+      // through.
+      $this->loggerFactory->get('palefire_search')->error('Scholarly Repository search gave no usable answer (HTTP @code).', ['@code' => $response->getStatusCode()]);
+      return NULL;
+    }
+    $block = [
+      'total' => (int) $answer['num_found'],
+      'docs' => array_values(array_filter($answer['docs'], 'is_array')),
+    ];
+    $this->cache->set($key, $block, time() + self::KEEP);
+    return $block;
+  }
+
+  /**
+   * The kept records at these addresses, by address.
+   */
+  private function keptRows(array $urls): array {
+    $urls = array_values(array_filter(array_unique($urls)));
+    if (!$urls || !$this->database->schema()->tableExists(RepositoryHarvest::TABLE)) {
+      return [];
+    }
+    $rows = [];
+    $select = $this->database->select(RepositoryHarvest::TABLE, 'r')
+      ->fields('r', ['url', 'abstract', 'subjects', 'kind', 'publication', 'year'])
+      ->condition('r.url', $urls, 'IN');
+    foreach ($select->execute() as $row) {
+      $rows[self::https((string) $row->url)] = $row;
+    }
+    return $rows;
+  }
+
+  /**
+   * A result from the repository's search as a row, with what the kept
+   * record adds. NULL without a title or an address in the repository.
+   */
+  private function liveItem(array $doc, ?object $kept, array $words): ?array {
+    $title = trim((string) ($doc['title'] ?? ''));
+    $url = self::https((string) ($doc['url'] ?? ''));
+    if ($title === '' || !str_starts_with($url, 'https://repository.lsu.edu/')) {
+      return NULL;
+    }
+    $creators = array_values(array_filter(array_map('strval', (array) ($doc['author_display'] ?? $doc['author'] ?? []))));
+    $type = (array) ($doc['document_type'] ?? []);
+    $year = preg_match('/(\d{4})$/', (string) ($doc['publication_date'] ?? ''), $match) ? $match[1] : ($kept->year ?? '');
+    $download = (string) ($doc['download_link'] ?? '');
+    $online = in_array($doc['download_format'] ?? '', self::ONLINE, TRUE) && preg_match('#^https?://#i', $download);
+    return [
+      'title' => $title,
+      'url' => $url,
+      'summary' => $kept ? $this->summary($kept, $words) : '',
+      'meta' => implode(' · ', array_filter([
+        $this->authors($creators),
+        ($kept->kind ?? '') ?: (string) ($type[1] ?? ''),
+        (string) ($doc['publication_title'] ?? '') ?: ($kept->publication ?? ''),
+        $year,
+      ])),
+      'full_text_url' => $online ? ResultText::url($download) : NULL,
+    ];
+  }
+
+  /**
+   * An address in the repository as https, as the kept records have them;
+   * its search gives them as http.
+   */
+  private static function https(string $url): string {
+    return preg_replace('#^http://repository\.lsu\.edu/#i', 'https://repository.lsu.edu/', trim($url)) ?? '';
+  }
+
+  /**
+   * The first authors, then "and others".
+   */
+  private function authors(array $creators): string {
+    return implode('; ', array_slice($creators, 0, self::AUTHORS)) . (count($creators) > self::AUTHORS ? ' ' . $this->t('and others') : '');
+  }
+
+  /**
+   * The abstract around the first word it has, or its keywords when it has no
+   * abstract.
+   */
+  private function summary(object $row, array $words): string {
+    $abstract = (string) $row->abstract;
+    return $abstract !== '' ? self::excerpt($abstract, $words) : implode(', ', array_filter(explode("\n", (string) $row->subjects)));
+  }
+
+  /**
+   * A page from the kept records.
+   */
+  private function kept(string $terms, array $filters, int $page, int $limit, string $sort): array {
     if (!$this->database->schema()->tableExists(RepositoryHarvest::TABLE) || !$this->database->select(RepositoryHarvest::TABLE)->range(0, 1)->countQuery()->execute()->fetchField()) {
       return ['total' => NULL, 'failed' => TRUE, 'items' => []];
     }
@@ -137,16 +348,11 @@ class RepositorySearch {
    * A record as a result row.
    */
   private function item(object $row, array $words): array {
-    $creators = array_filter(explode("\n", (string) $row->creators));
-    $authors = implode('; ', array_slice($creators, 0, self::AUTHORS)) . (count($creators) > self::AUTHORS ? ' ' . $this->t('and others') : '');
-    $abstract = (string) $row->abstract;
     return [
       'title' => (string) $row->title,
       'url' => ResultText::url((string) $row->url),
-      // The abstract around the first word it has, or its keywords when it
-      // has no abstract.
-      'summary' => $abstract !== '' ? self::excerpt($abstract, $words) : implode(', ', array_filter(explode("\n", (string) $row->subjects))),
-      'meta' => implode(' · ', array_filter([$authors, $row->kind, $row->publication, $row->year])),
+      'summary' => $this->summary($row, $words),
+      'meta' => implode(' · ', array_filter([$this->authors(array_values(array_filter(explode("\n", (string) $row->creators)))), $row->kind, $row->publication, $row->year])),
     ];
   }
 
